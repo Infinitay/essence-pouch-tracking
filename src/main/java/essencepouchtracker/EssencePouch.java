@@ -46,21 +46,21 @@ public class EssencePouch
 		log.debug("Removing {} essence, storing {}/{} essence into the {}. Previously stored {}/{} essence.",
 			essenceEmptied,
 			this.storedEssence,
-			this.pouchType.getCapacity(),
+			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
 			previousStoredEssence,
-			this.pouchType.getCapacity());
+			this.pouchType.getMaxCapacity());
 	}
 
 	/**
 	 * @param totalEssenceInInventory
-	 * @return left-over essence that exceeded maximum capacity
+	 * @return the number of essence that was stored given totalEssenceInInventory
+	 * Example: totalEssenceInInventory=10, storedEssence=3, getMaximumCapacity()=12 => return 1 (10+3 = 13 - 12 = 1 left over)
 	 */
 	public int fill(int totalEssenceInInventory)
 	{
-		int spaceAvailableInPouch = this.pouchType.getCapacity() - this.storedEssence;
-		int essenceToStore = Math.min(totalEssenceInInventory, spaceAvailableInPouch);
-		this.storedEssence = essenceToStore;
+		int essenceToStore = Math.min(totalEssenceInInventory, this.getAvailableSpace());
+		this.storedEssence += essenceToStore;
 		if (this.shouldDegrade)
 		{
 			this.remainingEssenceBeforeDecay -= essenceToStore;
@@ -68,15 +68,17 @@ public class EssencePouch
 		log.debug("Given {} essence, storing {}/{} essence into the {}. You can store approximately {} more essence until decay.",
 			totalEssenceInInventory,
 			essenceToStore,
-			this.pouchType.getCapacity(),
+			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
 			this.remainingEssenceBeforeDecay);
-		return Math.max(0, totalEssenceInInventory - this.pouchType.getCapacity());
+		// Left-over essence that exceeded maximum capacity
+		// Math.max(0, totalEssenceInInventory - this.pouchType.getMaxCapacity())
+		return essenceToStore;
 	}
 
 	public boolean isFilled()
 	{
-		return this.storedEssence == this.pouchType.getCapacity();
+		return this.storedEssence == this.pouchType.getMaxCapacity();
 	}
 
 	public double getApproximateFillsLeft()
@@ -89,5 +91,27 @@ public class EssencePouch
 		{
 			return 1;
 		}
+	}
+
+	public int getMaximumCapacity()
+	{
+		if (this.isDegraded)
+		{
+			return this.pouchType.getMaxInitialDegradedCapacity();
+		}
+		else
+		{
+			return this.pouchType.getMaxCapacity();
+		}
+	}
+
+	public int getAvailableSpace()
+	{
+		return this.getMaximumCapacity() - this.storedEssence;
+	}
+
+	public boolean isEmpty()
+	{
+		return this.storedEssence == 0;
 	}
 }
