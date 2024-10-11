@@ -1,4 +1,4 @@
-package essencepouchtracker;
+package essencepouchtracking;
 
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
@@ -6,7 +6,7 @@ import net.runelite.client.config.ConfigGroup;
 @ConfigGroup(EssencePouchTrackingConfig.GROUP)
 public interface EssencePouchTrackingConfig extends Config
 {
-	String GROUP = "essencepouchtracker";
+	String GROUP = "essencepouchtracking";
 	/*@ConfigItem(
 		keyName = "data",
 		name = "Pouch Data",

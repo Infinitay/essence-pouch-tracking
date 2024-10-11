@@ -1,4 +1,4 @@
-package essencepouchtracker;
+package essencepouchtracking;
 
 import lombok.EqualsAndHashCode;
 import lombok.Value;

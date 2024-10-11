@@ -1,4 +1,4 @@
-package essencepouchtracker;
+package essencepouchtracking;
 
 import java.awt.Color;
 import java.awt.FontMetrics;

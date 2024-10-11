@@ -1,4 +1,4 @@
-package essencepouchtracker;
+package essencepouchtracking;
 
 import lombok.AllArgsConstructor;
 import lombok.Getter;
