@@ -50,15 +50,23 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 
 			int remainingEssence = pouch.getRemainingEssenceBeforeDecay();
 			String remainingEssenceText;
-			if (!pouch.isDegraded()) {
-				if (remainingEssence < 0) {
+			if (!pouch.isDegraded())
+			{
+				if (remainingEssence < 0)
+				{
 					remainingEssenceText = "Repair";
-				} else if (remainingEssence == Integer.MAX_VALUE) {
+				}
+				else if (remainingEssence == Integer.MAX_VALUE)
+				{
 					remainingEssenceText = "∞";
-				} else {
+				}
+				else
+				{
 					remainingEssenceText = String.valueOf(remainingEssence);
 				}
-			} else {
+			}
+			else
+			{
 				remainingEssenceText = "Repair";
 			}
 			TextComponent remainingTC = new TextComponent();

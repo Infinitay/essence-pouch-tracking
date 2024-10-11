@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
 import lombok.Getter;
@@ -20,6 +21,7 @@ import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
+import net.runelite.api.ItemContainer;
 import net.runelite.api.ItemID;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
@@ -75,6 +77,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean firstStart;
 	private boolean isRepairDialogue;
 
+	private Multiset<Integer> currentInventoryItems = HashMultiset.create();
+	private int previousEssenceInInventory, essenceInInventory;
+	private int previousInventoryFreeSlots, inventoryFreeSlots;
+	private int previousInventoryUsedSlots, inventoryUsedSlots;
+	private boolean blockUpdate;
+
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
 	{
@@ -96,6 +104,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 		previousInventory.clear();
 		pouches.clear();
 		pouchQueue.clear();
+		currentInventoryItems.clear();
+		previousEssenceInInventory = essenceInInventory = 0;
+		previousInventoryFreeSlots = inventoryFreeSlots = 0;
+		previousInventoryUsedSlots = inventoryUsedSlots = 0;
+		blockUpdate = false;
 		overlayManager.remove(overlay);
 	}
 
@@ -114,11 +127,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 		log.debug("onGameStateChanged: " + gameStateChanged.getGameState());
 	}
 
+
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
 		log.debug("onMenuOptionClicked: " + client.getTickCount());
-		int essenceInPreviousInventory = (int) previousInventory.stream().filter(itemID -> isValidEssencePouchItem(itemID)).count();
+
+		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
+//		ItemContainer currentInventoryContainer = this.getInventoryContainer();
+
 
 		if (menuOptionClicked.getMenuAction() == MenuAction.CC_OP || menuOptionClicked.getMenuAction() == MenuAction.CC_OP_LOW_PRIORITY)
 		{
@@ -126,14 +143,101 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouchType != null && (menuOptionClicked.getMenuOption().equals("Fill") || menuOptionClicked.getMenuOption().equals("Empty")))
 			{
 				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOptionClicked.getMenuOption());
-				pouchQueue.add(pouchTask);
-				log.debug("Adding task \"{}\" to the queue", pouchTask);
-			}
-			else if (pouchType != null && menuOptionClicked.getMenuOption().equals("Examine"))
-			{
-
+				onPouchActionCreated(new PouchActionCreated(pouchTask));
+//				pouchQueue.add(pouchTask);
+//				log.debug("Adding task \"{}\" to the queue", pouchTask);
 			}
 		}
+	}
+
+	public void onPouchActionCreated(PouchActionCreated createdPouchAction)
+	{
+		blockUpdate = true;
+		PouchActionTask pouchAction = createdPouchAction.getPouchActionTask();
+		log.debug("New Pouch Action Received: {}", pouchAction);
+
+		// List of possible tasks:
+		// 1. Fill pouch
+		// What could happen when we try to fill a pouch?
+		//  ✓a. There is enough essence in the inventory to fill the pouch => Fill the pouch
+		//  ✓b. There is not enough essence in the inventory to fill the pouch => Fill the pouch with the max amount of essence in the inventory
+		//  ✓c. We don't have any essence in the inventory => Do nothing
+		//    c1. EDGE CASE (Tick race-case): The event inventory change has the wrong # of items removed (added to pouch) due to multiple actions per tick.
+		//                                    This could mean that in this tick, 9 essence was removed despite filling the small, medium, and large pouches.
+		//                                    Usually, there would be another event that would have the change with the other 3 essence removed. Although it could not be the case.
+		//                                    There are two ways to handle this: manually use the previous inventory state or just keep the queue and wait for the next event.
+		//  ✓d. The pouch is already full so we can't fill it => Do nothing
+		//  ✓e. The pouch just degraded => Fill it with the max amount of essence (Handled now via EssencePouch#getMaximumCapacity via EssencePouch#fill)
+		// 2. Empty pouch
+		// What could happen when we try to empty a pouch?
+		//  ✓a. The pouch is empty => Do nothing
+		//  b. The pouch is not empty => Empty the pouch
+		//  c. The pouch is not empty but inventory doesn't have enough space => Empty the pouch with the max amount of space in the inventory
+		//  d. The pouch is not empty but inventory is full => Do nothing
+
+		EssencePouch pouch = pouches.get(pouchAction.getPouchType());
+		if (pouch == null)
+		{
+			log.debug("Pouch {} not found in pouches map so can't do {}", pouchAction.getPouchType(), pouchAction.getAction());
+			blockUpdate = false;
+			return;
+		}
+
+		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+
+		if (pouchAction.getAction() == PouchActionTask.PouchAction.FILL)
+		{
+			// First check if the pouch is already full
+			if (pouch.isFilled())
+			{
+				log.debug("{} is already full so can't fill it", pouchAction.getPouchType());
+				blockUpdate = false;
+				return;
+			}
+			// Now check to see if there's even essence in the inventory
+			if (essenceInInventory == 0)
+			{
+				log.debug("No essence in the inventory to fill the {}", pouchAction.getPouchType());
+				blockUpdate = false;
+				return;
+			}
+
+			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
+			int essencePutIntoThePouch = pouch.fill(essenceInInventory);
+			log.debug("Added {} essence to the pouch for a total of {}/{}", essencePutIntoThePouch, pouch.getStoredEssence(), pouch.getMaximumCapacity());
+			essenceInInventory -= essencePutIntoThePouch;
+			inventoryUsedSlots -= essencePutIntoThePouch;
+			inventoryFreeSlots += essencePutIntoThePouch;
+			updatePreviousInventoryDetails();
+		}
+		else
+		{
+			// First check if the pouch is empty
+			if (pouch.isEmpty())
+			{
+				log.debug("{} is already empty so can't empty it", pouchAction.getPouchType());
+				blockUpdate = false;
+				return;
+			}
+			// Now check to see if there's even space in the inventory
+			if (inventoryFreeSlots == 0)
+			{
+				log.debug("No space in the inventory to empty the {}", pouchAction.getPouchType());
+				blockUpdate = false;
+				return;
+			}
+			// We meet all the conditions required to empty the pouch into the inventory (we have space to empty some if not all, and the pouch isn't empty)
+			// Find out how much essence we can take out of the pouch
+			int essenceToEmpty = Math.min(inventoryFreeSlots, pouch.getStoredEssence());
+			pouch.empty(essenceToEmpty);
+			log.debug("Removed {} essence from the pouch for a total of {}/{}", essenceToEmpty, pouch.getStoredEssence(), pouch.getMaximumCapacity());
+			essenceInInventory += essenceToEmpty;
+			inventoryUsedSlots += essenceToEmpty;
+			inventoryFreeSlots -= essenceToEmpty;
+			updatePreviousInventoryDetails();
+		}
+		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+		blockUpdate = false;
 	}
 
 	@Subscribe
@@ -143,6 +247,27 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Make sure we're only focusing on the inventory
 		if (itemContainerChanged.getContainerId() == InventoryID.INVENTORY.getId())
 		{
+			if (!blockUpdate)
+			{
+				currentInventoryItems.clear();
+				essenceInInventory = 0;
+				updatePreviousInventoryDetails();
+				List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
+				itemStream.forEach(item -> currentInventoryItems.add(item.getId(), itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
+				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> essenceInInventory++);
+				inventoryUsedSlots = currentInventoryItems.size();
+				inventoryFreeSlots = 28 - inventoryUsedSlots;
+				log.debug("[Inventory Data] Updated Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+					previousEssenceInInventory, essenceInInventory,
+					previousInventoryFreeSlots, inventoryFreeSlots,
+					previousInventoryUsedSlots, inventoryUsedSlots
+				);
+			}
+			else
+			{
+				log.debug("onItemContainerChanged (Inventory) blocked");
+			}
+
 			Multiset<Integer> currentInventory = HashMultiset.create();
 			List<Item> inventoryItems = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(item -> item.getId() != -1).collect(Collectors.toList());
 			int usedInventorySlots = inventoryItems.size();
@@ -181,140 +306,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 						currentPouch.setDegraded(true);
 						log.debug("{} has degraded", currentPouch.getPouchType().getName());
 						justDegradedPouches.put(currentPouch.getPouchType(), true);
+						// Re-run the action to update the pouch's state
+						restorePreviousInventoryDetails();
+						PouchActionTask pouchFilLEmpty = new PouchActionTask(currentPouch.getPouchType(), "Empty");
+						PouchActionTask pouchFilLAction = new PouchActionTask(currentPouch.getPouchType(), "Fill");
+						onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
+						onPouchActionCreated(new PouchActionCreated(pouchFilLAction));
 					}
 				}
 			}
-
-			// TODO Add support for multiple essence types because you can't mix essence types when filling pouches
-			// Since these essences were removed from the inventory, we need to fill the pouches with them
-			int essenceRemovedFromInventory = (int) removedItems.stream().filter(removedItemID -> isValidEssencePouchItem(removedItemID)).count();
-			// Since these essences were added to the inventory, we need to empty the pouches with them
-			int essenceAddedToInventory = (int) addedItems.stream().filter(addedItemID -> isValidEssencePouchItem(addedItemID)).count();
-			if (pouchQueue.isEmpty())
-			{
-				log.debug("Essence removed from inventory (To fill): " + essenceRemovedFromInventory);
-				log.debug("Essence added from inventory (To empty) " + essenceAddedToInventory);
-			}
-
-			while (!pouchQueue.isEmpty())
-			{
-				// Get the first pouch in the queue to be filled
-				log.debug("Pouch Queue Before Filling/Emptying: " + pouchQueue);
-				log.debug("Essence removed from inventory (To fill): " + essenceRemovedFromInventory);
-				log.debug("Essence added from inventory (To empty) " + essenceAddedToInventory);
-				PouchActionTask pouchAction = pouchQueue.poll();
-
-				EssencePouch pouch = pouches.get(pouchAction.getPouchType());
-				if (pouch != null)
-				{
-					// List of possible tasks:
-					// 1. Fill pouch
-					// What could happen when we try to fill a pouch?
-					//  ✓a. There is enough essence in the inventory to fill the pouch => Fill the pouch
-					//  ✓b. There is not enough essence in the inventory to fill the pouch => Fill the pouch with the max amount of essence in the inventory
-					//  ✓c. We don't have any essence in the inventory => Do nothing
-					//    c1. EDGE CASE (Tick race-case): The event inventory change has the wrong # of items removed (added to pouch) due to multiple actions per tick.
-					//                                    This could mean that in this tick, 9 essence was removed despite filling the small, medium, and large pouches.
-					//                                    Usually, there would be another event that would have the change with the other 3 essence removed. Although it could not be the case.
-					//                                    There are two ways to handle this: manually use the previous inventory state or just keep the queue and wait for the next event.
-					//  ✓d. The pouch is already full so we can't fill it => Do nothing
-					//  ✓e. The pouch just degraded => Fill it with the max amount of essence (Handled now via EssencePouch#getMaximumCapacity via EssencePouch#fill)
-					// 2. Empty pouch
-					// What could happen when we try to empty a pouch?
-					//  ✓a. The pouch is empty => Do nothing
-					//  ✓b. The pouch is not empty => Empty the pouch
-					//  ✓c. The pouch is not empty but inventory doesn't have enough space => Empty the pouch with the max amount of space in the inventory
-
-					// First lets fetch more details about the pouch
-					int currentPouchCapacity = pouch.getStoredEssence();
-					int maxPouchCapacity = pouch.getMaximumCapacity();
-					int availableSpace = pouch.getAvailableSpace();
-					boolean isPouchDegraded = pouch.isDegraded();
-					// User wants to fill the pouch
-					if (pouchAction.getAction() == PouchActionTask.PouchAction.FILL)
-					{
-						// Lets do the simple thing first: If the pouch is full then we can't fill it
-						if (availableSpace == 0)
-						{
-							log.debug("{} is already full so we can't fill it", pouch);
-						}
-						else
-						{
-							// Okay so now we know the pouch is not full and it is ready to be filled
-							// Check to see if we have enough essence in the inventory to fill the pouch
-							if (essenceRemovedFromInventory > 0)
-							{
-								int previousPouchSize = pouch.getStoredEssence();
-								int usedEssence = pouch.fill(essenceRemovedFromInventory);
-								int leftOverEssence = essenceRemovedFromInventory - usedEssence;
-								log.debug("Chose to fill {}/{} given essence (+{}). Leftover essence to add: {}", pouch.getStoredEssence() - previousPouchSize, essenceRemovedFromInventory, usedEssence, leftOverEssence);
-								essenceRemovedFromInventory = leftOverEssence;
-								// We don't have to update used/free slots because
-							}
-							else
-							{
-								// c1 EDGE CASE: Tick race conditions. The event said there isn't enough essence to fill the pouch but it's just that it's being delayed to the next event.
-								// So lets handle this. First, lets just check the previous inventory state just to make sure we even should delay this action.
-								if (previousInventory != null && previousInventory.size() > 0)
-								{
-									// Lets check the previous inventory state to see if we have enough essence to fill the pouch
-									int essenceInPreviousInventory = (int) previousInventory.stream().filter(itemID -> isValidEssencePouchItem(itemID)).count();
-									if (essenceInPreviousInventory > 0)
-									{
-										int edgeCaseEssence = essenceInPreviousInventory - essenceRemovedFromInventory;
-										if (edgeCaseEssence > 0)
-										{
-//											log.debug("Reached fill edge case for {}", pouch);
-											// Add the edge case essence to our existing essenceRemovedFromInventory
-											essenceRemovedFromInventory += edgeCaseEssence;
-											int previousPouchSize = pouch.getStoredEssence();
-											int usedEssence = pouch.fill(essenceRemovedFromInventory);
-											int leftOverEssence = essenceRemovedFromInventory - usedEssence;
-											log.debug("[Edge Case] Chose to fill {}/{} given essence (+{}). Leftover essence to add: {}", pouch.getStoredEssence() - previousPouchSize, essenceRemovedFromInventory, usedEssence, leftOverEssence);
-											essenceRemovedFromInventory = leftOverEssence;
-											// Don't forget to update used/free slots - Here, because we filled used-- and free++
-											usedInventorySlots -= usedEssence;
-											freeSlots += usedEssence;
-											continue;
-										}
-									}
-								}
-								log.debug("We don't have any essence in the inventory to fill {}", pouch);
-							}
-						}
-					}
-					else if (pouchAction.getAction() == PouchActionTask.PouchAction.EMPTY)
-					{
-						// Lets handle the simple case first: If the pouch is empty then we can't empty it
-						if (currentPouchCapacity == 0)
-						{
-							log.debug("{} is already empty so we can't empty it", pouch);
-						}
-						else
-						{
-							// The pouch isn't empty and has essence stored in it, so lets empty it now
-							// Check to see if we have enough space in the inventory to empty the pouch
-
-							// Technically when we empty a pouch, we are adding essence to the inventory therefore freeSlots decreases
-
-							if ((freeSlots + essenceAddedToInventory) > 0)
-							{
-								// We have free space within the inventory to empty the pouch
-								int essenceToEmpty = Math.min(currentPouchCapacity, (freeSlots + essenceAddedToInventory));
-								pouch.empty(essenceToEmpty);
-								essenceAddedToInventory += essenceToEmpty;
-								log.debug("Chose to empty {}/{} available essence. Leftover essence to empty: {}", essenceToEmpty, currentPouchCapacity, essenceAddedToInventory);
-							}
-							else
-							{
-								int essenceInPreviousInventory = (int) previousInventory.stream().filter(itemID -> isValidEssencePouchItem(itemID)).count();
-								log.debug("We don't have enough space in the inventory to empty {}", pouch);
-							}
-						}
-					}
-				}
-			}
-			log.debug("Pouch Queue After Filling/Emptying: " + pouchQueue);
 			previousInventory = currentInventory;
 		}
 	}
@@ -322,6 +322,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
+		log.debug("{}", blockUpdate);
 		if (isRepairDialogue)
 		{
 			boolean repairedPouches = false;
@@ -438,9 +439,18 @@ public class EssencePouchTrackingPlugin extends Plugin
 					}
 					break;
 				case "!ct":
-					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, 12);
+					int essence = 21;
+					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.SMALL}, essence);
+					essence -= EssencePouches.SMALL.getMaxCapacity();
+					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.MEDIUM}, essence);
+					essence -= EssencePouches.MEDIUM.getMaxCapacity();
+					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.LARGE}, essence);
+					essence -= EssencePouches.LARGE.getMaxCapacity();
+					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, essence);
+					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.SMALL}, 12);
 					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, 12);
-					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, 12);
+					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.LARGE}, 12);
+					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.MEDIUM}, 12);
 					this.fakeItemContainerChanged(-1, -1, -1);
 					for (EssencePouch pouch : pouches.values())
 					{
@@ -532,5 +542,29 @@ public class EssencePouchTrackingPlugin extends Plugin
 			default:
 				return false;
 		}
+	}
+
+	private ItemContainer getInventoryContainer()
+	{
+		return client.getItemContainer(InventoryID.INVENTORY.getId());
+	}
+
+	private Predicate<Item> filterNullItemsPredicate()
+	{
+		return item -> item.getId() != -1;
+	}
+
+	private void updatePreviousInventoryDetails()
+	{
+		previousEssenceInInventory = essenceInInventory;
+		previousInventoryFreeSlots = inventoryFreeSlots;
+		previousInventoryUsedSlots = inventoryUsedSlots;
+	}
+
+	private void restorePreviousInventoryDetails()
+	{
+		essenceInInventory = previousEssenceInInventory;
+		inventoryFreeSlots = previousInventoryFreeSlots;
+		inventoryUsedSlots = previousInventoryUsedSlots;
 	}
 }

@@ -33,18 +33,26 @@ public class EssencePouch
 		this(pouchType, 0);
 	}
 
+	/**
+	 * Repairs the pouch by resetting the essence remaining before decay and resets the degradation state
+	 */
 	public void repairPouch()
 	{
 		this.remainingEssenceBeforeDecay = this.pouchType.getMaxEssenceBeforeDecay();
 		this.setDegraded(false);
 	}
 
-	public void empty(int essenceEmptied)
+	/**
+	 * Empties the specified amount of essence from the pouch
+	 *
+	 * @param essenceToRemove the number of essence to remove from the pouch
+	 */
+	public void empty(int essenceToRemove)
 	{
 		int previousStoredEssence = this.storedEssence;
-		this.storedEssence -= essenceEmptied;
+		this.storedEssence -= essenceToRemove;
 		log.debug("Removing {} essence, storing {}/{} essence into the {}. Previously stored {}/{} essence.",
-			essenceEmptied,
+			essenceToRemove,
 			this.storedEssence,
 			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
@@ -53,8 +61,10 @@ public class EssencePouch
 	}
 
 	/**
+	 * Fills the pouch with essence until it's full or as much essence that was given
+	 *
 	 * @param totalEssenceInInventory
-	 * @return the number of essence that was stored given totalEssenceInInventory
+	 * @return the number of essence that stored within the pouch
 	 * Example: totalEssenceInInventory=10, storedEssence=3, getMaximumCapacity()=12 => return 1 (10+3 = 13 - 12 = 1 left over)
 	 */
 	public int fill(int totalEssenceInInventory)
@@ -76,11 +86,17 @@ public class EssencePouch
 		return essenceToStore;
 	}
 
+	/**
+	 * @return whether the pouch is fully filled or not
+	 */
 	public boolean isFilled()
 	{
-		return this.storedEssence == this.pouchType.getMaxCapacity();
+		return this.storedEssence == this.getMaximumCapacity();
 	}
 
+	/**
+	 * @return the ratio (percentage) of fill usages left for the pouch
+	 */
 	public double getApproximateFillsLeft()
 	{
 		if (this.shouldDegrade)
@@ -93,6 +109,11 @@ public class EssencePouch
 		}
 	}
 
+	/**
+	 * Gets the maximum essence capacity based on whether it's a regular or degraded pouch
+	 *
+	 * @return the maximum amount of essence the pouch can fill given the state (degraded or not)
+	 */
 	public int getMaximumCapacity()
 	{
 		if (this.isDegraded)
@@ -105,11 +126,17 @@ public class EssencePouch
 		}
 	}
 
+	/**
+	 * @return the amount of essence that can be stored in the pouch
+	 */
 	public int getAvailableSpace()
 	{
 		return this.getMaximumCapacity() - this.storedEssence;
 	}
 
+	/**
+	 * @return whether the pouch is empty or not
+	 */
 	public boolean isEmpty()
 	{
 		return this.storedEssence == 0;

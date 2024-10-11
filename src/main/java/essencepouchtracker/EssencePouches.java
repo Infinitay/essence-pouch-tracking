@@ -51,14 +51,17 @@ public enum EssencePouches
 		return false;
 	}
 
-	public static EssencePouch createPouch(int itemID) {
+	public static EssencePouch createPouch(int itemID)
+	{
 		EssencePouch essencePouch = null;
 		for (EssencePouches pouch : values())
 		{
 			if (pouch.getItemID() == itemID)
 			{
 				essencePouch = new EssencePouch(pouch);
-			} else if (pouch.getDegradedItemID() == itemID) {
+			}
+			else if (pouch.getDegradedItemID() == itemID)
+			{
 				essencePouch = new EssencePouch(pouch);
 				essencePouch.setDegraded(true);
 				essencePouch.setRemainingEssenceBeforeDecay(Integer.MIN_VALUE);
