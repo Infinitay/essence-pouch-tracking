@@ -26,11 +26,14 @@ import net.runelite.api.ItemID;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NpcID;
+import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
@@ -127,11 +130,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 		log.debug("onGameStateChanged: " + gameStateChanged.getGameState());
 	}
 
+	private boolean bankedXInput = false;
+	private BankEssenceTask bankEssenceTask;
 
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
 		log.debug("onMenuOptionClicked: " + client.getTickCount());
+		log.debug("{}", menuOptionClicked);
+		log.debug("Is bank open: {}", client.getItemContainer(InventoryID.BANK) != null);
 
 		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
 //		ItemContainer currentInventoryContainer = this.getInventoryContainer();
@@ -139,10 +146,74 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 		if (menuOptionClicked.getMenuAction() == MenuAction.CC_OP || menuOptionClicked.getMenuAction() == MenuAction.CC_OP_LOW_PRIORITY)
 		{
-			EssencePouches pouchType = EssencePouches.getPouch(menuOptionClicked.getItemId());
-			if (pouchType != null && (menuOptionClicked.getMenuOption().equals("Fill") || menuOptionClicked.getMenuOption().equals("Empty")))
+			String menuOption = menuOptionClicked.getMenuOption().toLowerCase();
+			// Handle withdrawing essence from the bank in case someone one-tick's it (or faster)
+			// First check to see if the bank is open
+			if (client.getItemContainer(InventoryID.BANK) != null && (menuOption.startsWith("deposit") || menuOption.startsWith("withdraw")))
 			{
-				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOptionClicked.getMenuOption());
+				int itemID = menuOptionClicked.getItemId();
+				String quantity = menuOption.substring(menuOption.indexOf("-") + 1);
+				menuOption = menuOption.substring(0, menuOption.indexOf("-"));
+				log.debug("{} {} x{}", menuOption, itemID, quantity);
+
+				Widget itemWidget = menuOptionClicked.getWidget();
+				if (itemWidget == null)
+				{
+					return;
+				}
+				// Should only be used when Withdrawing
+				int totalItemAmount;
+				if (menuOption.equals("withdraw"))
+				{
+					// Withdrawing from the bank => Quantity is on the item Widget
+					totalItemAmount = itemWidget.getItemQuantity();
+				}
+				else
+				{
+					// The player is depositing from the inventory so fetch the total amount of the item inside the inventory
+					totalItemAmount = (int) currentInventoryItems.stream().filter(inventoryItemID -> inventoryItemID == itemID).count();
+					totalItemAmount = essenceInInventory;
+				}
+				int quantityNumeric;
+				try
+				{
+					quantityNumeric = Integer.parseInt(quantity);
+					onBankEssenceTaskCreated(new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric));
+				}
+				catch (NumberFormatException nfe)
+				{
+					// The quantity mode was either -X, -All, -All-but-1
+					// Lets handle the easy ones first All/but-1
+					if (!quantity.equals("x"))
+					{
+						switch (quantity)
+						{
+							case "all":
+								quantityNumeric = totalItemAmount;
+								break;
+							case "all-but-1":
+								quantityNumeric = totalItemAmount - 1;
+								break;
+							default:
+								quantityNumeric = -1;
+								log.debug("Unknown {} quantity {}", menuOption, quantity);
+								break;
+						}
+						onBankEssenceTaskCreated(new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric));
+					}
+					else
+					{
+						// The player selected to Deposit/Withdraw-X so we need to wait for the user to submit a value
+						quantityNumeric = -1;
+						bankedXInput = true;
+						bankEssenceTask = new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric);
+					}
+				}
+			}
+			EssencePouches pouchType = EssencePouches.getPouch(menuOptionClicked.getItemId());
+			if (pouchType != null && (menuOption.equals("fill") || menuOption.equals("empty")))
+			{
+				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
 				onPouchActionCreated(new PouchActionCreated(pouchTask));
 //				pouchQueue.add(pouchTask);
 //				log.debug("Adding task \"{}\" to the queue", pouchTask);
@@ -162,7 +233,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		//  ✓a. There is enough essence in the inventory to fill the pouch => Fill the pouch
 		//  ✓b. There is not enough essence in the inventory to fill the pouch => Fill the pouch with the max amount of essence in the inventory
 		//  ✓c. We don't have any essence in the inventory => Do nothing
-		//    c1. EDGE CASE (Tick race-case): The event inventory change has the wrong # of items removed (added to pouch) due to multiple actions per tick.
+		//    ✓c1. EDGE CASE (Tick race-case): The event inventory change has the wrong # of items removed (added to pouch) due to multiple actions per tick.
 		//                                    This could mean that in this tick, 9 essence was removed despite filling the small, medium, and large pouches.
 		//                                    Usually, there would be another event that would have the change with the other 3 essence removed. Although it could not be the case.
 		//                                    There are two ways to handle this: manually use the previous inventory state or just keep the queue and wait for the next event.
@@ -171,9 +242,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// 2. Empty pouch
 		// What could happen when we try to empty a pouch?
 		//  ✓a. The pouch is empty => Do nothing
-		//  b. The pouch is not empty => Empty the pouch
-		//  c. The pouch is not empty but inventory doesn't have enough space => Empty the pouch with the max amount of space in the inventory
-		//  d. The pouch is not empty but inventory is full => Do nothing
+		//  ✓b. The pouch is not empty => Empty the pouch
+		//  ✓c. The pouch is not empty but inventory doesn't have enough space => Empty the pouch with the max amount of space in the inventory
+		//  ✓d. The pouch is not empty but inventory is full => Do nothing
 
 		EssencePouch pouch = pouches.get(pouchAction.getPouchType());
 		if (pouch == null)
@@ -237,7 +308,37 @@ public class EssencePouchTrackingPlugin extends Plugin
 			updatePreviousInventoryDetails();
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
-		blockUpdate = false;
+//		blockUpdate = false;
+	}
+
+	public void onBankEssenceTaskCreated(BankEssenceTask createdBankEssenceTask)
+	{
+		blockUpdate = true;
+		log.debug("Bank Essence Task Created: {}", createdBankEssenceTask);
+		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+		// Update the inventory manually in case of tick race conditions when banking
+		if (createdBankEssenceTask.getAction() == BankEssenceTask.BankEssenceAction.DEPOSIT)
+		{
+			// Depositing the essence from the players inventory into the bank
+			// Don't worry about the quantity being invalid because this was calculated in onMenuOptionClicked
+			essenceInInventory -= createdBankEssenceTask.getQuantity();
+			inventoryUsedSlots -= createdBankEssenceTask.getQuantity();
+			inventoryFreeSlots += createdBankEssenceTask.getQuantity();
+			updatePreviousInventoryDetails();
+		}
+		else
+		{
+			// Withdrawing the essence from the players bank into their inventory
+			// Remember to check the quantity because the quantity was assigned by the # of the item we have in the bank
+			int maximumEssenceAvailableToWithdraw = Math.min(createdBankEssenceTask.getQuantity(), inventoryFreeSlots);
+			essenceInInventory += maximumEssenceAvailableToWithdraw;
+			inventoryUsedSlots += maximumEssenceAvailableToWithdraw;
+			inventoryFreeSlots -= maximumEssenceAvailableToWithdraw;
+			updatePreviousInventoryDetails();
+		}
+		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", createdBankEssenceTask.toString(), null);
+		blockUpdate = true;
 	}
 
 	@Subscribe
@@ -247,13 +348,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Make sure we're only focusing on the inventory
 		if (itemContainerChanged.getContainerId() == InventoryID.INVENTORY.getId())
 		{
+			currentInventoryItems.clear();
+			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
+			itemStream.forEach(item -> currentInventoryItems.add(item.getId(), itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
 			if (!blockUpdate)
 			{
-				currentInventoryItems.clear();
 				essenceInInventory = 0;
 				updatePreviousInventoryDetails();
-				List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
-				itemStream.forEach(item -> currentInventoryItems.add(item.getId(), itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
 				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> essenceInInventory++);
 				inventoryUsedSlots = currentInventoryItems.size();
 				inventoryFreeSlots = 28 - inventoryUsedSlots;
@@ -266,6 +367,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			else
 			{
 				log.debug("onItemContainerChanged (Inventory) blocked");
+				blockUpdate = false;
 			}
 
 			Multiset<Integer> currentInventory = HashMultiset.create();
@@ -322,7 +424,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
-		log.debug("{}", blockUpdate);
+//		if (blockUpdate) {
+//			blockUpdate = false;
+//		}
+//		log.debug("{}", blockUpdate);
 		if (isRepairDialogue)
 		{
 			boolean repairedPouches = false;
@@ -363,6 +468,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onWidgetClosed(WidgetClosed widgetClosed)
 	{
+		log.debug("Closed Widget {}", widgetClosed);
 		switch (widgetClosed.getGroupId())
 		{
 			case InterfaceID.DIALOG_NPC:
@@ -392,7 +498,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged varbitChanged)
 	{
-
+		/*if (false && bankEssenceTask != null && varbitChanged.getVarbitId() == Varbits.BANK_REQUESTEDQUANTITY)
+		{
+			bankEssenceTask.setQuantity(varbitChanged.getValue());
+			onBankEssenceTaskCreated(bankEssenceTask);
+			bankEssenceTask = null;
+		}*/
 	}
 
 	@Subscribe
@@ -477,10 +588,55 @@ public class EssencePouchTrackingPlugin extends Plugin
 					log.debug("Examine option clicked");
 					log.debug("{}", pouches.values());
 					log.debug("{}", pouchQueue);
+					log.debug("[Inventory Data] Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+						previousEssenceInInventory, essenceInInventory,
+						previousInventoryFreeSlots, inventoryFreeSlots,
+						previousInventoryUsedSlots, inventoryUsedSlots
+					);
 					break;
 				default:
 					break;
 			}
+		}
+	}
+
+	@Subscribe
+	public void onScriptPostFired(ScriptPostFired postFiredScript)
+	{
+		/*if (bankedXInput && postFiredScript.getScriptId() == ScriptID.MESSAGE_LAYER_CLOSE)
+		{
+			log.debug("Message input was closed");
+			bankedXInput = false;
+			client.va
+		}*/
+
+		// 681 = Input Dialog Enter Pressed (By then, the input text is set back to empty string ""
+		// 212 Seems to be for any input dialog as it contains cs2 code for handling "k,m,b" inputs
+		if (bankEssenceTask != null && postFiredScript.getScriptId() == 212)
+		{
+			try
+			{
+				int quantity = Integer.parseInt(client.getVarcStrValue(VarClientStr.INPUT_TEXT));
+				bankEssenceTask.setQuantity(quantity);
+				onBankEssenceTaskCreated(bankEssenceTask);
+			}
+			catch (NumberFormatException nfe)
+			{
+				log.debug("The input dialogue was not an integer for some reason \"{}\"", client.getVarcStrValue(VarClientStr.INPUT_TEXT));
+			}
+			bankEssenceTask = null;
+		}
+	}
+
+	private String inputDialogText;
+
+	@Subscribe
+	public void onVarClientStrChanged(VarClientStrChanged varClientStrChanged)
+	{
+		if (varClientStrChanged.getIndex() == VarClientStr.INPUT_TEXT)
+		{
+			inputDialogText = client.getVarcStrValue(VarClientStr.INPUT_TEXT);
+			log.debug("Input changed: {}", inputDialogText);
 		}
 	}
 
@@ -566,5 +722,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 		essenceInInventory = previousEssenceInInventory;
 		inventoryFreeSlots = previousInventoryFreeSlots;
 		inventoryUsedSlots = previousInventoryUsedSlots;
+	}
+
+	private String getItemName(int itemID)
+	{
+		return itemManager.getItemComposition(itemID).getName();
 	}
 }
