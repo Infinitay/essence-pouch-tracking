@@ -84,7 +84,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private final Deque<PouchActionTask> pouchQueue = Queues.newArrayDeque();
 	private Multiset<Integer> previousInventory = HashMultiset.create();
 
-	private boolean firstStart;
 	private boolean isRepairDialogue;
 
 	private Multiset<Integer> currentInventoryItems = HashMultiset.create();
@@ -102,28 +101,22 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
-		log.info("Example started!");
-//		firstStart = true;
-		overlayManager.add(overlay);
-		log.debug("Startup Key: {}", this.configManager.getRSProfileKey());
+		this.overlayManager.add(overlay);
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
-		log.info("Example stopped!");
-		// Save the tracking state
 		this.saveTrackingState();
-		log.debug("Shutdown Key: {}", this.configManager.getRSProfileKey());
-		previousInventory.clear();
-		pouches.clear();
-		pouchQueue.clear();
-		currentInventoryItems.clear();
-		previousEssenceInInventory = essenceInInventory = 0;
-		previousInventoryFreeSlots = inventoryFreeSlots = 0;
-		previousInventoryUsedSlots = inventoryUsedSlots = 0;
-		blockUpdate = false;
-		overlayManager.remove(overlay);
+		this.previousInventory.clear();
+		this.pouches.clear();
+		this.pouchQueue.clear();
+		this.currentInventoryItems.clear();
+		this.previousEssenceInInventory = this.essenceInInventory = 0;
+		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
+		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
+		this.blockUpdate = false;
+		this.overlayManager.remove(overlay);
 	}
 
 	@Subscribe
@@ -131,7 +124,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (changedConfig.getGroup().equals(EssencePouchTrackingConfig.GROUP))
 		{
-			log.debug("Config changed: {}", changedConfig);
+			// log.debug("Config changed: {}", changedConfig);
 		}
 	}
 
@@ -159,15 +152,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 	}
 
-	private boolean bankedXInput = false;
 	private BankEssenceTask bankEssenceTask;
 
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
-		log.debug("onMenuOptionClicked: " + client.getTickCount());
+		log.debug("onMenuOptionClicked: " + this.client.getTickCount());
 		log.debug("{}", menuOptionClicked);
-		log.debug("Is bank open: {}", client.getItemContainer(InventoryID.BANK) != null);
 
 		//TODO All essence is removed from a pouch when it is dropped
 
@@ -175,12 +166,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 //		ItemContainer currentInventoryContainer = this.getInventoryContainer();
 
 
-		if (menuOptionClicked.getMenuAction() == MenuAction.CC_OP || menuOptionClicked.getMenuAction() == MenuAction.CC_OP_LOW_PRIORITY)
+		if (menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP) || menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP_LOW_PRIORITY))
 		{
 			String menuOption = menuOptionClicked.getMenuOption().toLowerCase();
 			// Handle withdrawing essence from the bank in case someone one-tick's it (or faster)
 			// First check to see if the bank is open
-			if (client.getItemContainer(InventoryID.BANK) != null && (menuOption.startsWith("deposit") || menuOption.startsWith("withdraw")))
+			if (this.client.getItemContainer(InventoryID.BANK) != null && (menuOption.startsWith("deposit") || menuOption.startsWith("withdraw")))
 			{
 				int itemID = menuOptionClicked.getItemId();
 				String quantity = menuOption.substring(menuOption.indexOf("-") + 1);
@@ -202,8 +193,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				else
 				{
 					// The player is depositing from the inventory so fetch the total amount of the item inside the inventory
-					totalItemAmount = (int) currentInventoryItems.stream().filter(inventoryItemID -> inventoryItemID == itemID).count();
-					totalItemAmount = essenceInInventory;
+					totalItemAmount = this.essenceInInventory;
 				}
 				int quantityNumeric;
 				try
@@ -236,8 +226,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					{
 						// The player selected to Deposit/Withdraw-X so we need to wait for the user to submit a value
 						quantityNumeric = -1;
-						bankedXInput = true;
-						bankEssenceTask = new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric);
+						this.bankEssenceTask = new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric);
 					}
 				}
 			}
@@ -246,15 +235,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 			{
 				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
 				onPouchActionCreated(new PouchActionCreated(pouchTask));
-//				pouchQueue.add(pouchTask);
-//				log.debug("Adding task \"{}\" to the queue", pouchTask);
 			}
 		}
 	}
 
 	public void onPouchActionCreated(PouchActionCreated createdPouchAction)
 	{
-		blockUpdate = true;
+		this.blockUpdate = true;
 		PouchActionTask pouchAction = createdPouchAction.getPouchActionTask();
 		log.debug("New Pouch Action Received: {}", pouchAction);
 
@@ -277,40 +264,40 @@ public class EssencePouchTrackingPlugin extends Plugin
 		//  ✓c. The pouch is not empty but inventory doesn't have enough space => Empty the pouch with the max amount of space in the inventory
 		//  ✓d. The pouch is not empty but inventory is full => Do nothing
 
-		EssencePouch pouch = pouches.get(pouchAction.getPouchType());
+		EssencePouch pouch = this.pouches.get(pouchAction.getPouchType());
 		if (pouch == null)
 		{
 			log.debug("Pouch {} not found in pouches map so can't do {}", pouchAction.getPouchType(), pouchAction.getAction());
-			blockUpdate = false;
+			this.blockUpdate = false;
 			return;
 		}
 
-		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 
-		if (pouchAction.getAction() == PouchActionTask.PouchAction.FILL)
+		if (pouchAction.getAction().equals(PouchActionTask.PouchAction.FILL))
 		{
 			// First check if the pouch is already full
 			if (pouch.isFilled())
 			{
 				log.debug("{} is already full so can't fill it", pouchAction.getPouchType());
-				blockUpdate = false;
+				this.blockUpdate = false;
 				return;
 			}
 			// Now check to see if there's even essence in the inventory
-			if (essenceInInventory == 0)
+			if (this.essenceInInventory == 0)
 			{
 				log.debug("No essence in the inventory to fill the {}", pouchAction.getPouchType());
-				blockUpdate = false;
+				this.blockUpdate = false;
 				return;
 			}
 
 			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
-			int essencePutIntoThePouch = pouch.fill(essenceInInventory);
+			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory);
 			log.debug("Added {} essence to the pouch for a total of {}/{}", essencePutIntoThePouch, pouch.getStoredEssence(), pouch.getMaximumCapacity());
-			essenceInInventory -= essencePutIntoThePouch;
-			inventoryUsedSlots -= essencePutIntoThePouch;
-			inventoryFreeSlots += essencePutIntoThePouch;
-			updatePreviousInventoryDetails();
+			this.essenceInInventory -= essencePutIntoThePouch;
+			this.inventoryUsedSlots -= essencePutIntoThePouch;
+			this.inventoryFreeSlots += essencePutIntoThePouch;
+			this.updatePreviousInventoryDetails();
 		}
 		else
 		{
@@ -318,106 +305,96 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouch.isEmpty())
 			{
 				log.debug("{} is already empty so can't empty it", pouchAction.getPouchType());
-				blockUpdate = false;
+				this.blockUpdate = false;
 				return;
 			}
 			// Now check to see if there's even space in the inventory
-			if (inventoryFreeSlots == 0)
+			if (this.inventoryFreeSlots == 0)
 			{
 				log.debug("No space in the inventory to empty the {}", pouchAction.getPouchType());
-				blockUpdate = false;
+				this.blockUpdate = false;
 				return;
 			}
 			// We meet all the conditions required to empty the pouch into the inventory (we have space to empty some if not all, and the pouch isn't empty)
 			// Find out how much essence we can take out of the pouch
-			int essenceToEmpty = Math.min(inventoryFreeSlots, pouch.getStoredEssence());
+			int essenceToEmpty = Math.min(this.inventoryFreeSlots, pouch.getStoredEssence());
 			pouch.empty(essenceToEmpty);
 			log.debug("Removed {} essence from the pouch for a total of {}/{}", essenceToEmpty, pouch.getStoredEssence(), pouch.getMaximumCapacity());
-			essenceInInventory += essenceToEmpty;
-			inventoryUsedSlots += essenceToEmpty;
-			inventoryFreeSlots -= essenceToEmpty;
-			updatePreviousInventoryDetails();
+			this.essenceInInventory += essenceToEmpty;
+			this.inventoryUsedSlots += essenceToEmpty;
+			this.inventoryFreeSlots -= essenceToEmpty;
+			this.updatePreviousInventoryDetails();
 		}
-		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
-//		blockUpdate = false;
+		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
+		// blockUpdate = false;
 		this.saveTrackingState();
 	}
 
 	public void onBankEssenceTaskCreated(BankEssenceTask createdBankEssenceTask)
 	{
-		blockUpdate = true;
-		log.debug("Bank Essence Task Created: {}", createdBankEssenceTask);
-		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
+		this.blockUpdate = true;
+		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 		// Update the inventory manually in case of tick race conditions when banking
-		if (createdBankEssenceTask.getAction() == BankEssenceTask.BankEssenceAction.DEPOSIT)
+		if (createdBankEssenceTask.getAction().equals(BankEssenceTask.BankEssenceAction.DEPOSIT))
 		{
 			// Depositing the essence from the players inventory into the bank
 			// Don't worry about the quantity being invalid because this was calculated in onMenuOptionClicked
-			essenceInInventory -= createdBankEssenceTask.getQuantity();
-			inventoryUsedSlots -= createdBankEssenceTask.getQuantity();
-			inventoryFreeSlots += createdBankEssenceTask.getQuantity();
-			updatePreviousInventoryDetails();
+			this.essenceInInventory -= createdBankEssenceTask.getQuantity();
+			this.inventoryUsedSlots -= createdBankEssenceTask.getQuantity();
+			this.inventoryFreeSlots += createdBankEssenceTask.getQuantity();
+			this.updatePreviousInventoryDetails();
 		}
 		else
 		{
 			// Withdrawing the essence from the players bank into their inventory
 			// Remember to check the quantity because the quantity was assigned by the # of the item we have in the bank
-			int maximumEssenceAvailableToWithdraw = Math.min(createdBankEssenceTask.getQuantity(), inventoryFreeSlots);
-			essenceInInventory += maximumEssenceAvailableToWithdraw;
-			inventoryUsedSlots += maximumEssenceAvailableToWithdraw;
-			inventoryFreeSlots -= maximumEssenceAvailableToWithdraw;
-			updatePreviousInventoryDetails();
+			int maximumEssenceAvailableToWithdraw = Math.min(createdBankEssenceTask.getQuantity(), this.inventoryFreeSlots);
+			this.essenceInInventory += maximumEssenceAvailableToWithdraw;
+			this.inventoryUsedSlots += maximumEssenceAvailableToWithdraw;
+			this.inventoryFreeSlots -= maximumEssenceAvailableToWithdraw;
+			this.updatePreviousInventoryDetails();
 		}
-		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
-		client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", createdBankEssenceTask.toString(), null);
-		blockUpdate = true;
+		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
+		this.blockUpdate = true;
 	}
 
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged itemContainerChanged)
 	{
-		log.debug("onItemContainerChanged ({}): " + client.getTickCount(), itemContainerChanged.getContainerId());
 		// Make sure we're only focusing on the inventory
 		if (itemContainerChanged.getContainerId() == InventoryID.INVENTORY.getId())
 		{
-			currentInventoryItems.clear();
+			this.currentInventoryItems.clear();
 			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
-			itemStream.forEach(item -> currentInventoryItems.add(item.getId(), itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
-			if (!blockUpdate)
+			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
+			if (!this.blockUpdate)
 			{
-				essenceInInventory = 0;
+				this.essenceInInventory = 0;
 				updatePreviousInventoryDetails();
-				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> essenceInInventory++);
-				inventoryUsedSlots = currentInventoryItems.size();
-				inventoryFreeSlots = 28 - inventoryUsedSlots;
+				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> this.essenceInInventory++);
+				this.inventoryUsedSlots = this.currentInventoryItems.size();
+				this.inventoryFreeSlots = 28 - this.inventoryUsedSlots;
 				log.debug("[Inventory Data] Updated Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
-					previousEssenceInInventory, essenceInInventory,
-					previousInventoryFreeSlots, inventoryFreeSlots,
-					previousInventoryUsedSlots, inventoryUsedSlots
+					this.previousEssenceInInventory, this.essenceInInventory,
+					this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+					this.previousInventoryUsedSlots, this.inventoryUsedSlots
 				);
 			}
 			else
 			{
-				log.debug("onItemContainerChanged (Inventory) blocked");
-				blockUpdate = false;
+				log.debug("[Inventory Data] Blocked updating the inventory");
+				this.blockUpdate = false;
 			}
 
 			Multiset<Integer> currentInventory = HashMultiset.create();
 			List<Item> inventoryItems = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(item -> item.getId() != -1).collect(Collectors.toList());
-			int usedInventorySlots = inventoryItems.size();
-			int freeSlots = 28 - usedInventorySlots;
-			boolean hasFillableEssenceInInventory = inventoryItems.stream().anyMatch(item -> this.isValidEssencePouchItem(item.getId()));
 			inventoryItems.forEach(item -> currentInventory.add(item.getId(), item.getQuantity()));
-//			log.debug("Previous Inventory: " + previousInventory.stream().filter(e -> e != -1).collect(Collectors.toList()));
-//			log.debug("Current Inventory: " + currentInventory.stream().filter(e -> e != -1).collect(Collectors.toList()));
 
 			// Remember that for set operations difference A - B != B - A
-			Multiset<Integer> addedItems = Multisets.difference(currentInventory, previousInventory);
-			Multiset<Integer> removedItems = Multisets.difference(previousInventory, currentInventory);
+			Multiset<Integer> addedItems = Multisets.difference(currentInventory, this.previousInventory);
+			Multiset<Integer> removedItems = Multisets.difference(this.previousInventory, currentInventory);
 			log.debug("Added Items: " + addedItems);
 			log.debug("Removed Items: " + removedItems);
-			log.debug("Used Slots: " + usedInventorySlots);
-			log.debug("Free Slots: " + freeSlots);
 
 			Map<EssencePouches, Boolean> justDegradedPouches = new HashMap<>();
 			// Now that we've handling inventory state changes, we can handle the pouches
@@ -425,17 +402,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 			for (int itemId : addedItems)
 			{
 				EssencePouch pouch = EssencePouches.createPouch(itemId);
-				if (pouch != null && !pouches.containsKey(pouch.getPouchType()))
+				if (pouch != null && !this.pouches.containsKey(pouch.getPouchType()))
 				{
-					log.debug("Adding new pouch: " + pouch.getPouchType().getName());
 					pouches.put(pouch.getPouchType(), pouch);
 					this.updatePouchFromState(pouch);
 				}
 
 				// Check to see if pouch has degraded
-				if (pouch != null && pouches.containsKey(pouch.getPouchType()))
+				if (pouch != null && this.pouches.containsKey(pouch.getPouchType()))
 				{
-					EssencePouch currentPouch = pouches.get(pouch.getPouchType());
+					EssencePouch currentPouch = this.pouches.get(pouch.getPouchType());
 					if (currentPouch != null && currentPouch.getPouchType().getDegradedItemID() == itemId)
 					{
 						currentPouch.setDegraded(true);
@@ -450,38 +426,35 @@ public class EssencePouchTrackingPlugin extends Plugin
 					}
 				}
 			}
-			previousInventory = currentInventory;
+			this.previousInventory = currentInventory;
 		}
 	}
 
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
-//		log.debug("{}", serializeState(this.trackingState));
-//		log.debug("{}", deserializeState(serializeState(this.trackingState)));
-//		if (blockUpdate) {
-//			blockUpdate = false;
-//		}
-//		log.debug("{}", blockUpdate);
+		/*if (this.blockUpdate) {
+			this.blockUpdate = false;
+		}*/
 		//TODO If there is no repair option then that means no pouch has decayed
-		if (isRepairDialogue)
+		if (this.isRepairDialogue)
 		{
 			boolean repairedPouches = false;
 
-			Widget dialogNPCHeadModel = client.getWidget(ComponentID.DIALOG_NPC_HEAD_MODEL);
+			Widget dialogNPCHeadModel = this.client.getWidget(ComponentID.DIALOG_NPC_HEAD_MODEL);
 			if (dialogNPCHeadModel != null && dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE)
 			{
-				Widget dialogText = client.getWidget(ComponentID.DIALOG_NPC_TEXT);
+				Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
 				if (dialogText != null && dialogText.getText().equals("Fine. A simple transfiguration spell should resolve things<br>for you."))
 				{
 					repairedPouches = true;
 				}
 			}
 
-			Widget x = client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS);
-			if (x != null && x.getChildren() != null)
+			Widget dialogOptionsWidget = this.client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS);
+			if (dialogOptionsWidget != null && dialogOptionsWidget.getChildren() != null)
 			{
-				List<String> options = Arrays.stream(x.getChildren()).filter(Objects::nonNull).map(Widget::getText).collect(Collectors.toList());
+				List<String> options = Arrays.stream(dialogOptionsWidget.getChildren()).filter(Objects::nonNull).map(Widget::getText).collect(Collectors.toList());
 				List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
 				log.debug("Dialog Option Options: " + options);
 				log.debug("Dialog Options Equals: " + options.equals(POST_REPAIR_DIALOG_OPTIONS));
@@ -494,9 +467,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (repairedPouches)
 			{
 				log.debug("Pouches have been repaired");
-				pouches.values().forEach(EssencePouch::repairPouch);
-				log.debug("{}", pouches.values());
-				isRepairDialogue = false;
+				this.pouches.values().forEach(EssencePouch::repairPouch);
+				log.debug("{}", this.pouches.values());
+				this.isRepairDialogue = false;
 				this.saveTrackingState();
 			}
 		}
@@ -505,12 +478,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onWidgetClosed(WidgetClosed widgetClosed)
 	{
-		log.debug("Closed Widget {}", widgetClosed);
 		switch (widgetClosed.getGroupId())
 		{
 			case InterfaceID.DIALOG_NPC:
 			case InterfaceID.DIALOG_OPTION:
-				isRepairDialogue = false;
+				this.isRepairDialogue = false;
 				break;
 			default:
 				break;
@@ -520,12 +492,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onWidgetLoaded(WidgetLoaded widgetLoaded)
 	{
-		log.debug("Widget Loaded: " + widgetLoaded.getGroupId());
 		switch (widgetLoaded.getGroupId())
 		{
 			case InterfaceID.DIALOG_NPC:
 			case InterfaceID.DIALOG_OPTION:
-				isRepairDialogue = true;
+				this.isRepairDialogue = true;
 				break;
 			default:
 				break;
@@ -535,26 +506,25 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onVarbitChanged(VarbitChanged varbitChanged)
 	{
-		/*if (false && bankEssenceTask != null && varbitChanged.getVarbitId() == Varbits.BANK_REQUESTEDQUANTITY)
-		{
-			bankEssenceTask.setQuantity(varbitChanged.getValue());
-			onBankEssenceTaskCreated(bankEssenceTask);
-			bankEssenceTask = null;
-		}*/
+		// Bank's custom withdraw/deposit is set with a Varbit
+		// We can also tell whether a pouch is fully filled with a VarPlayer
+		// TODO Use essence pouch VarPlayer to set pouch state when it's unknown, or to verify and update state if need-be
 	}
 
 	@Subscribe
 	public void onChatMessage(ChatMessage receivedChatMessage)
 	{
-		// If the message was sent in the public chat by a player named "Nefarious" then log "hello world"
-		if (receivedChatMessage.getType() == ChatMessageType.PUBLICCHAT && receivedChatMessage.getName().equalsIgnoreCase(client.getLocalPlayer().getName()))
+		// Manually set this variable to true to help with debugging. I won't be removing all of this spaghetti in case I need to debug something in the future related with ticks or state
+		boolean isDevMode = false;
+		if (!isDevMode)
+		{
+			return;
+		}
+		if (receivedChatMessage.getType().equals(ChatMessageType.PUBLICCHAT) && receivedChatMessage.getName().equalsIgnoreCase(this.client.getLocalPlayer().getName()))
 		{
 			String message = receivedChatMessage.getMessage().toLowerCase();
 			switch (message)
 			{
-				case "!hello":
-					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Hello, world!", null);
-					break;
 				case "!fill s":
 					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.SMALL}, 3);
 					this.fakeItemContainerChanged(-1, -1, -1);
@@ -581,7 +551,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					this.fakeFillEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, 12);
 					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.GIANT}, 12);
 					this.fakeItemContainerChanged(-1, -1, -1);
-					for (EssencePouch pouch : pouches.values())
+					for (EssencePouch pouch : this.pouches.values())
 					{
 						log.debug("{}", pouch);
 					}
@@ -600,13 +570,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.LARGE}, 12);
 					this.fakeEmptyEssencePouch(new EssencePouches[]{EssencePouches.MEDIUM}, 12);
 					this.fakeItemContainerChanged(-1, -1, -1);
-					for (EssencePouch pouch : pouches.values())
+					for (EssencePouch pouch : this.pouches.values())
 					{
 						log.debug("{}", pouch);
 					}
 					break;
 				case "!repair":
-					for (EssencePouch pouch : pouches.values())
+					for (EssencePouch pouch : this.pouches.values())
 					{
 						pouch.repairPouch();
 						log.debug("{}", pouch);
@@ -614,7 +584,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Pouches have been repaired", null);
 					break;
 				case "!reset":
-					for (EssencePouch pouch : pouches.values())
+					for (EssencePouch pouch : this.pouches.values())
 					{
 						pouch.repairPouch();
 						pouch.setStoredEssence(0);
@@ -622,12 +592,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 					}
 					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Pouches have been repaired & reset", null);
 				case "!d":
-					log.debug("{}", pouches.values());
-					log.debug("{}", pouchQueue);
+					log.debug("{}", this.pouches.values());
+					log.debug("{}", this.pouchQueue);
 					log.debug("[Inventory Data] Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
-						previousEssenceInInventory, essenceInInventory,
-						previousInventoryFreeSlots, inventoryFreeSlots,
-						previousInventoryUsedSlots, inventoryUsedSlots
+						this.previousEssenceInInventory, this.essenceInInventory,
+						this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+						this.previousInventoryUsedSlots, this.inventoryUsedSlots
 					);
 					break;
 				case "!ts":
@@ -658,28 +628,21 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onScriptPostFired(ScriptPostFired postFiredScript)
 	{
-		/*if (bankedXInput && postFiredScript.getScriptId() == ScriptID.MESSAGE_LAYER_CLOSE)
-		{
-			log.debug("Message input was closed");
-			bankedXInput = false;
-			client.va
-		}*/
-
 		// 681 = Input Dialog Enter Pressed (By then, the input text is set back to empty string ""
 		// 212 Seems to be for any input dialog as it contains cs2 code for handling "k,m,b" inputs
-		if (bankEssenceTask != null && postFiredScript.getScriptId() == 212)
+		if (this.bankEssenceTask != null && postFiredScript.getScriptId() == 212)
 		{
 			try
 			{
-				int quantity = Integer.parseInt(client.getVarcStrValue(VarClientStr.INPUT_TEXT));
-				bankEssenceTask.setQuantity(quantity);
-				onBankEssenceTaskCreated(bankEssenceTask);
+				int quantity = Integer.parseInt(this.client.getVarcStrValue(VarClientStr.INPUT_TEXT));
+				this.bankEssenceTask.setQuantity(quantity);
+				onBankEssenceTaskCreated(this.bankEssenceTask);
 			}
 			catch (NumberFormatException nfe)
 			{
-				log.debug("The input dialogue was not an integer for some reason \"{}\"", client.getVarcStrValue(VarClientStr.INPUT_TEXT));
+				log.debug("The input dialogue was not an integer for some reason \"{}\"", this.client.getVarcStrValue(VarClientStr.INPUT_TEXT));
 			}
-			bankEssenceTask = null;
+			this.bankEssenceTask = null;
 		}
 	}
 
@@ -690,8 +653,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (varClientStrChanged.getIndex() == VarClientStr.INPUT_TEXT)
 		{
-			inputDialogText = client.getVarcStrValue(VarClientStr.INPUT_TEXT);
-			log.debug("Input changed: {}", inputDialogText);
+			this.inputDialogText = this.client.getVarcStrValue(VarClientStr.INPUT_TEXT);
 		}
 	}
 
@@ -699,10 +661,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		for (EssencePouches pouchType : essencePouches)
 		{
-			if (pouches.containsKey(pouchType))
+			if (this.pouches.containsKey(pouchType))
 			{
 				// MenuOptionClicked(getParam0=0, getParam1=9764864, getMenuOption=Fill, getMenuTarget=<col=ff9040>Small pouch</col>, getMenuAction=CC_OP, getId=2)
-				MenuEntry fillMenuOption = client.getMenu().createMenuEntry(-1);
+				MenuEntry fillMenuOption = this.client.getMenu().createMenuEntry(-1);
 				fillMenuOption.setParam0(0);
 				fillMenuOption.setParam1(9764864);
 				fillMenuOption.setOption("Fill");
@@ -719,7 +681,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		for (EssencePouches pouchType : pouchTypes)
 		{
-			if (pouches.containsKey(pouchType))
+			if (this.pouches.containsKey(pouchType))
 			{
 				// MenuOptionClicked(getParam0=0, getParam1=9764864, getMenuOption=Empty, getMenuTarget=<col=ff9040>Small pouch</col>, getMenuAction=CC_OP, getId=3)
 				MenuEntry fillMenuOption = client.getMenu().createMenuEntry(-1);
@@ -737,7 +699,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private void fakeItemContainerChanged(int fakeNumberOfEssence, int fakeNumberOfUsedSlots, int fakeNumberOfFreeSlots)
 	{
-		ItemContainerChanged itemContainerChanged = new ItemContainerChanged(InventoryID.INVENTORY.getId(), client.getItemContainer(InventoryID.INVENTORY.getId()));
+		ItemContainerChanged itemContainerChanged = new ItemContainerChanged(InventoryID.INVENTORY.getId(), this.client.getItemContainer(InventoryID.INVENTORY.getId()));
 		this.onItemContainerChanged(itemContainerChanged);
 	}
 
@@ -757,7 +719,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private ItemContainer getInventoryContainer()
 	{
-		return client.getItemContainer(InventoryID.INVENTORY.getId());
+		return this.client.getItemContainer(InventoryID.INVENTORY.getId());
 	}
 
 	private Predicate<Item> filterNullItemsPredicate()
@@ -767,16 +729,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private void updatePreviousInventoryDetails()
 	{
-		previousEssenceInInventory = essenceInInventory;
-		previousInventoryFreeSlots = inventoryFreeSlots;
-		previousInventoryUsedSlots = inventoryUsedSlots;
+		this.previousEssenceInInventory = this.essenceInInventory;
+		this.previousInventoryFreeSlots = this.inventoryFreeSlots;
+		this.previousInventoryUsedSlots = this.inventoryUsedSlots;
 	}
 
 	private void restorePreviousInventoryDetails()
 	{
-		essenceInInventory = previousEssenceInInventory;
-		inventoryFreeSlots = previousInventoryFreeSlots;
-		inventoryUsedSlots = previousInventoryUsedSlots;
+		this.essenceInInventory = this.previousEssenceInInventory;
+		this.inventoryFreeSlots = this.previousInventoryFreeSlots;
+		this.inventoryUsedSlots = this.previousInventoryUsedSlots;
 	}
 
 	private void saveTrackingState()
@@ -810,7 +772,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (this.trackingState != null)
 		{
-			for (EssencePouch pouch : pouches.values())
+			for (EssencePouch pouch : this.pouches.values())
 			{
 				this.trackingState.setPouch(pouch);
 				log.debug("Updated tracking state for {} ({} stored, {} until decay)", pouch.getPouchType(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
@@ -839,11 +801,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private String serializeState(EssencePouchTrackingState state)
 	{
-		return gson.toJson(state, EssencePouchTrackingState.class);
+		return this.gson.toJson(state, EssencePouchTrackingState.class);
 	}
 
 	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
 	{
-		return gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
+		return this.gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
 	}
 }

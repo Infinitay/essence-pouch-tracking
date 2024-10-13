@@ -23,6 +23,6 @@ public class PouchActionTask
 	@Override
 	public String toString()
 	{
-		return action.name() + " " + pouchType.getName();
+		return this.action.name() + " " + this.pouchType.getName();
 	}
 }

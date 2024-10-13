@@ -29,7 +29,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		Map<EssencePouches, EssencePouch> pouches = plugin.getPouches();
+		Map<EssencePouches, EssencePouch> pouches = this.plugin.getPouches();
 
 		if (pouches.isEmpty() || !(this.config.showStoredEssence() || this.config.showDecay()))
 		{

@@ -13,11 +13,11 @@ public class EssencePouchTrackingState
 
 	public EssencePouchTrackingState()
 	{
-		smallPouch = new EssencePouch(EssencePouches.SMALL);
-		mediumPouch = new EssencePouch(EssencePouches.MEDIUM);
-		largePouch = new EssencePouch(EssencePouches.LARGE);
-		giantPouch = new EssencePouch(EssencePouches.GIANT);
-		colossalPouch = new EssencePouch(EssencePouches.COLOSSAL);
+		this.smallPouch = new EssencePouch(EssencePouches.SMALL);
+		this.mediumPouch = new EssencePouch(EssencePouches.MEDIUM);
+		this.largePouch = new EssencePouch(EssencePouches.LARGE);
+		this.giantPouch = new EssencePouch(EssencePouches.GIANT);
+		this.colossalPouch = new EssencePouch(EssencePouches.COLOSSAL);
 	}
 
 	public EssencePouch getPouch(EssencePouches pouch)
@@ -25,15 +25,15 @@ public class EssencePouchTrackingState
 		switch (pouch)
 		{
 			case SMALL:
-				return smallPouch;
+				return this.smallPouch;
 			case MEDIUM:
-				return mediumPouch;
+				return this.mediumPouch;
 			case LARGE:
-				return largePouch;
+				return this.largePouch;
 			case GIANT:
-				return giantPouch;
+				return this.giantPouch;
 			case COLOSSAL:
-				return colossalPouch;
+				return this.colossalPouch;
 		}
 		return null;
 	}
@@ -48,19 +48,19 @@ public class EssencePouchTrackingState
 		switch (pouch.getPouchType())
 		{
 			case SMALL:
-				smallPouch = pouch;
+				this.smallPouch = pouch;
 				break;
 			case MEDIUM:
-				mediumPouch = pouch;
+				this.mediumPouch = pouch;
 				break;
 			case LARGE:
-				largePouch = pouch;
+				this.largePouch = pouch;
 				break;
 			case GIANT:
-				giantPouch = pouch;
+				this.giantPouch = pouch;
 				break;
 			case COLOSSAL:
-				colossalPouch = pouch;
+				this.colossalPouch = pouch;
 				break;
 		}
 	}
