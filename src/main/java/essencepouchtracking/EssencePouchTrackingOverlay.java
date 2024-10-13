@@ -31,7 +31,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 	{
 		Map<EssencePouches, EssencePouch> pouches = plugin.getPouches();
 
-		if (pouches.isEmpty())
+		if (pouches.isEmpty() || !(this.config.showStoredEssence() || this.config.showDecay()))
 		{
 			return;
 		}
@@ -39,43 +39,61 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 		EssencePouch pouch = pouches.get(EssencePouches.getPouch(itemId));
 		if (pouch != null)
 		{
-			String storedEssenceText = String.valueOf(pouch.getStoredEssence());
-			Rectangle itemBounds = widgetItem.getCanvasBounds();
-			TextComponent storedEssenceTC = new TextComponent();
-			Point storedTextPosition = new Point(itemBounds.x - 1, itemBounds.y + 8);
-			storedEssenceTC.setPosition(storedTextPosition);
-			storedEssenceTC.setText(storedEssenceText);
-			storedEssenceTC.setColor(Color.RED);
-			storedEssenceTC.render(graphics);
 
-			int remainingEssence = pouch.getRemainingEssenceBeforeDecay();
-			String remainingEssenceText;
-			if (!pouch.isDegraded())
+			if (this.config.showStoredEssence())
 			{
-				if (remainingEssence < 0)
-				{
-					remainingEssenceText = "Repair";
-				}
-				else if (remainingEssence == Integer.MAX_VALUE)
-				{
-					remainingEssenceText = "∞";
-				}
-				else
-				{
-					remainingEssenceText = String.valueOf(remainingEssence);
-				}
+				renderStoredEssence(graphics, itemId, widgetItem, pouch);
 			}
-			else
+
+			if (this.config.showDecay())
+			{
+				renderDecayRemaining(graphics, itemId, widgetItem, pouch);
+			}
+		}
+	}
+
+	private void renderStoredEssence(Graphics2D graphics, int itemId, WidgetItem widgetItem, EssencePouch pouch)
+	{
+		String storedEssenceText = String.valueOf(pouch.getStoredEssence());
+		Rectangle itemBounds = widgetItem.getCanvasBounds();
+		TextComponent storedEssenceTC = new TextComponent();
+		Point storedTextPosition = new Point(itemBounds.x - 1, itemBounds.y + 8);
+		storedEssenceTC.setPosition(storedTextPosition);
+		storedEssenceTC.setText(storedEssenceText);
+		storedEssenceTC.setColor(Color.RED);
+		storedEssenceTC.render(graphics);
+	}
+
+	private void renderDecayRemaining(Graphics2D graphics, int itemId, WidgetItem widgetItem, EssencePouch pouch)
+	{
+		Rectangle itemBounds = widgetItem.getCanvasBounds();
+		int remainingEssence = pouch.getRemainingEssenceBeforeDecay();
+		String remainingEssenceText;
+		if (!pouch.isDegraded())
+		{
+			if (remainingEssence < 0)
 			{
 				remainingEssenceText = "Repair";
 			}
-			TextComponent remainingTC = new TextComponent();
-			FontMetrics fm = graphics.getFontMetrics();
-			Point remainingTextPosition = new Point(itemBounds.x + itemBounds.width - fm.stringWidth(remainingEssenceText) - 1, itemBounds.y + itemBounds.height);
-			remainingTC.setPosition(remainingTextPosition);
-			remainingTC.setText(remainingEssenceText);
-			remainingTC.setColor(Color.WHITE);
-			remainingTC.render(graphics);
+			else if (remainingEssence == Integer.MAX_VALUE)
+			{
+				remainingEssenceText = "∞";
+			}
+			else
+			{
+				remainingEssenceText = String.valueOf(remainingEssence);
+			}
 		}
+		else
+		{
+			remainingEssenceText = "Repair";
+		}
+		TextComponent remainingTC = new TextComponent();
+		FontMetrics fm = graphics.getFontMetrics();
+		Point remainingTextPosition = new Point(itemBounds.x + itemBounds.width - fm.stringWidth(remainingEssenceText) - 1, itemBounds.y + itemBounds.height);
+		remainingTC.setPosition(remainingTextPosition);
+		remainingTC.setText(remainingEssenceText);
+		remainingTC.setColor(Color.WHITE);
+		remainingTC.render(graphics);
 	}
 }
