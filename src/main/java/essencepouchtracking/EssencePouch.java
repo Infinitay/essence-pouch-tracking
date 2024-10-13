@@ -12,25 +12,29 @@ public class EssencePouch
 	private int remainingEssenceBeforeDecay;
 	private boolean isDegraded;
 	private boolean shouldDegrade;
+	private boolean unknownStored;
+	private boolean unknownDecay;
 
-	public EssencePouch(EssencePouches pouchType, int storedEssence, int remainingEssenceBeforeDecay, boolean isDegraded, boolean shouldDegrade)
+	public EssencePouch(EssencePouches pouchType, int storedEssence, int remainingEssenceBeforeDecay, boolean isDegraded, boolean shouldDegrade, boolean unknownState, boolean unknownDecay)
 	{
 		this.pouchType = pouchType;
 		this.storedEssence = storedEssence;
 		this.remainingEssenceBeforeDecay = remainingEssenceBeforeDecay;
 		this.isDegraded = isDegraded;
 		this.shouldDegrade = pouchType.equals(EssencePouches.SMALL) ? false : shouldDegrade;
+		this.unknownStored = unknownState;
+		this.unknownDecay = unknownDecay;
 		log.debug("Created new Essence Pouch: {}", this);
 	}
 
-	public EssencePouch(EssencePouches pouchType, int storedEssence)
+	public EssencePouch(EssencePouches pouchType, int storedEssence, boolean unknownState, boolean unknownDecay)
 	{
-		this(pouchType, storedEssence, pouchType.getMaxEssenceBeforeDecay(), false, true);
+		this(pouchType, storedEssence, pouchType.getMaxEssenceBeforeDecay(), false, true, unknownState, unknownDecay);
 	}
 
 	public EssencePouch(EssencePouches pouchType)
 	{
-		this(pouchType, 0);
+		this(pouchType, 0, true, true);
 	}
 
 	/**
@@ -40,6 +44,7 @@ public class EssencePouch
 	{
 		this.remainingEssenceBeforeDecay = this.pouchType.getMaxEssenceBeforeDecay();
 		this.setDegraded(false);
+		this.setUnknownDecay(false);
 	}
 
 	/**
@@ -51,6 +56,7 @@ public class EssencePouch
 	{
 		int previousStoredEssence = this.storedEssence;
 		this.storedEssence -= essenceToRemove;
+		this.setUnknownStored(false);
 		log.debug("Removing {} essence, storing {}/{} essence into the {}. Previously stored {}/{} essence.",
 			essenceToRemove,
 			this.storedEssence,
@@ -75,6 +81,7 @@ public class EssencePouch
 		{
 			this.remainingEssenceBeforeDecay -= essenceToStore;
 		}
+		this.setUnknownStored(false);
 		log.debug("Given {} essence, storing {}/{} essence into the {}. You can store approximately {} more essence until decay.",
 			totalEssenceInInventory,
 			essenceToStore,

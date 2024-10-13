@@ -5,6 +5,7 @@ import com.google.common.collect.ImmutableList;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
 import com.google.common.collect.Queues;
+import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.util.Arrays;
 import java.util.Deque;
@@ -19,6 +20,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
@@ -70,7 +72,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private ItemManager itemManager;
 
 	@Inject
+	private Gson gson;
+
+	@Inject
 	private EssencePouchTrackingOverlay overlay;
+
+	private EssencePouchTrackingState trackingState;
 
 	@Getter
 	private final Map<EssencePouches, EssencePouch> pouches = new HashMap<>();
@@ -98,12 +105,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 		log.info("Example started!");
 //		firstStart = true;
 		overlayManager.add(overlay);
+		log.debug("Startup Key: {}", this.configManager.getRSProfileKey());
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
 		log.info("Example stopped!");
+		// Save the tracking state
+		this.saveTrackingState();
+		log.debug("Shutdown Key: {}", this.configManager.getRSProfileKey());
 		previousInventory.clear();
 		pouches.clear();
 		pouchQueue.clear();
@@ -120,14 +131,32 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (changedConfig.getGroup().equals(EssencePouchTrackingConfig.GROUP))
 		{
-			log.debug("Config changed: {}", changedConfig.getKey());
+			log.debug("Config changed: {}", changedConfig);
 		}
+	}
+
+	@Override
+	public void resetConfiguration()
+	{
+		log.debug("Resetting tracking state");
+		this.trackingState = new EssencePouchTrackingState();
+		for (EssencePouch pouch : pouches.values())
+		{
+			this.updatePouchFromState(pouch);
+		}
+		this.saveTrackingState();
+		super.resetConfiguration();
 	}
 
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
-		log.debug("onGameStateChanged: " + gameStateChanged.getGameState());
+		// Handle loading the previous essence pouch state here instead of onStartup because profile key there is null unless we logged in before in the current play session
+		if (gameStateChanged.getGameState().equals(GameState.LOGGED_IN))
+		{
+			// Get the tracking state
+			this.loadTrackingState();
+		}
 	}
 
 	private boolean bankedXInput = false;
@@ -139,6 +168,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 		log.debug("onMenuOptionClicked: " + client.getTickCount());
 		log.debug("{}", menuOptionClicked);
 		log.debug("Is bank open: {}", client.getItemContainer(InventoryID.BANK) != null);
+
+		//TODO All essence is removed from a pouch when it is dropped
 
 		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
 //		ItemContainer currentInventoryContainer = this.getInventoryContainer();
@@ -309,6 +340,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", essenceInInventory, inventoryFreeSlots, inventoryUsedSlots);
 //		blockUpdate = false;
+		this.saveTrackingState();
 	}
 
 	public void onBankEssenceTaskCreated(BankEssenceTask createdBankEssenceTask)
@@ -397,6 +429,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					log.debug("Adding new pouch: " + pouch.getPouchType().getName());
 					pouches.put(pouch.getPouchType(), pouch);
+					this.updatePouchFromState(pouch);
 				}
 
 				// Check to see if pouch has degraded
@@ -424,10 +457,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
+//		log.debug("{}", serializeState(this.trackingState));
+//		log.debug("{}", deserializeState(serializeState(this.trackingState)));
 //		if (blockUpdate) {
 //			blockUpdate = false;
 //		}
 //		log.debug("{}", blockUpdate);
+		//TODO If there is no repair option then that means no pouch has decayed
 		if (isRepairDialogue)
 		{
 			boolean repairedPouches = false;
@@ -461,6 +497,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				pouches.values().forEach(EssencePouch::repairPouch);
 				log.debug("{}", pouches.values());
 				isRepairDialogue = false;
+				this.saveTrackingState();
 			}
 		}
 	}
@@ -585,7 +622,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 					}
 					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Pouches have been repaired & reset", null);
 				case "!d":
-					log.debug("Examine option clicked");
 					log.debug("{}", pouches.values());
 					log.debug("{}", pouchQueue);
 					log.debug("[Inventory Data] Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
@@ -593,6 +629,25 @@ public class EssencePouchTrackingPlugin extends Plugin
 						previousInventoryFreeSlots, inventoryFreeSlots,
 						previousInventoryUsedSlots, inventoryUsedSlots
 					);
+					break;
+				case "!ts":
+					log.debug("{}", this.trackingState);
+					break;
+				case "!c":
+					log.debug("{}", this.configManager.getConfigurationKeys(EssencePouchTrackingConfig.GROUP));
+					break;
+				case "!update":
+					log.debug("Updating tracking state");
+					this.updateTrackingState();
+					break;
+				case "!load":
+					log.debug("LOADED");
+					log.debug("{}", this.configManager.getConfiguration(this.config.GROUP, "trackingState"));
+					log.debug("{}", this.configManager.getRSProfileConfiguration(this.config.GROUP, "trackingState"));
+					break;
+				case "!clear":
+					this.configManager.unsetConfiguration(this.config.GROUP, "trackingState");
+					this.configManager.unsetRSProfileConfiguration(this.config.GROUP, "trackingState");
 					break;
 				default:
 					break;
@@ -724,8 +779,71 @@ public class EssencePouchTrackingPlugin extends Plugin
 		inventoryUsedSlots = previousInventoryUsedSlots;
 	}
 
+	private void saveTrackingState()
+	{
+		// Update the state once more to ensure proper state
+		// this.updateTrackingState();
+		String serializeStateAsJSON = this.serializeState(this.trackingState);
+		this.configManager.setRSProfileConfiguration(this.config.GROUP, "trackingState", serializeStateAsJSON);
+		log.debug("Saved the tracking state");
+	}
+
+	private void loadTrackingState()
+	{
+
+		String trackingStateAsJSONString = this.configManager.getRSProfileConfiguration(this.config.GROUP, "trackingState");
+		log.debug("{}", trackingStateAsJSONString);
+		EssencePouchTrackingState trackingState = this.deserializeState(trackingStateAsJSONString);
+		if (trackingState != null)
+		{
+			this.trackingState = trackingState;
+			log.debug("Loaded tracking state: {}", trackingState);
+		}
+		else
+		{
+			log.debug("Unable to load tracking state to the loaded tracking state being null");
+			this.updateTrackingState(); // It'll initialize the state
+		}
+	}
+
+	private void updateTrackingState()
+	{
+		if (this.trackingState != null)
+		{
+			for (EssencePouch pouch : pouches.values())
+			{
+				this.trackingState.setPouch(pouch);
+				log.debug("Updated tracking state for {} ({} stored, {} until decay)", pouch.getPouchType(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
+			}
+			log.debug("Updated the tracking state");
+		}
+		else
+		{
+			log.debug("Unable to update the tracking state due to the state being null. Initializing the state.");
+			this.trackingState = new EssencePouchTrackingState();
+		}
+		this.saveTrackingState();
+	}
+
 	private String getItemName(int itemID)
 	{
 		return itemManager.getItemComposition(itemID).getName();
+	}
+
+	private void updatePouchFromState(EssencePouch pouch)
+	{
+		EssencePouch pouchFromState = this.trackingState.getPouch(pouch.getPouchType());
+		this.pouches.put(pouch.getPouchType(), pouchFromState);
+		log.debug("Updated the {} from the tracking state ({} stored, {} until decay)", pouch.getPouchType().getName(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
+	}
+
+	private String serializeState(EssencePouchTrackingState state)
+	{
+		return gson.toJson(state, EssencePouchTrackingState.class);
+	}
+
+	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
+	{
+		return gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
 	}
 }

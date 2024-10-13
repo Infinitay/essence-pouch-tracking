@@ -54,7 +54,8 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 
 	private void renderStoredEssence(Graphics2D graphics, int itemId, WidgetItem widgetItem, EssencePouch pouch)
 	{
-		String storedEssenceText = String.valueOf(pouch.getStoredEssence());
+		boolean unknownState = pouch.isUnknownStored();
+		String storedEssenceText = unknownState ? "?" : String.valueOf(pouch.getStoredEssence());
 		Rectangle itemBounds = widgetItem.getCanvasBounds();
 		TextComponent storedEssenceTC = new TextComponent();
 		Point storedTextPosition = new Point(itemBounds.x - 1, itemBounds.y + 8);
@@ -67,11 +68,12 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 	private void renderDecayRemaining(Graphics2D graphics, int itemId, WidgetItem widgetItem, EssencePouch pouch)
 	{
 		Rectangle itemBounds = widgetItem.getCanvasBounds();
+		boolean unknownState = pouch.isUnknownDecay();
 		int remainingEssence = pouch.getRemainingEssenceBeforeDecay();
 		String remainingEssenceText;
 		if (!pouch.isDegraded())
 		{
-			if (remainingEssence < 0)
+			if (remainingEssence < 0 || unknownState)
 			{
 				remainingEssenceText = "Repair";
 			}
