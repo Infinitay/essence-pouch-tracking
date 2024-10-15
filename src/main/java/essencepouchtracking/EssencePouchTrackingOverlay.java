@@ -73,7 +73,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 		String remainingEssenceText;
 		if (!pouch.isDegraded())
 		{
-			if (remainingEssence < 0 || unknownState)
+			if (remainingEssence <= 0 || unknownState)
 			{
 				remainingEssenceText = "Repair";
 			}

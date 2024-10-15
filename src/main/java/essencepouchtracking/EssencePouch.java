@@ -52,18 +52,22 @@ public class EssencePouch
 	 *
 	 * @param essenceToRemove the number of essence to remove from the pouch
 	 */
-	public void empty(int essenceToRemove)
+	public int empty(int essenceToRemove)
 	{
 		int previousStoredEssence = this.storedEssence;
-		this.storedEssence -= essenceToRemove;
+		int essenceRemoved = Math.min(essenceToRemove, this.storedEssence);
+		this.storedEssence -= essenceRemoved;
 		this.setUnknownStored(false);
-		log.debug("Removing {} essence, storing {}/{} essence into the {}. Previously stored {}/{} essence.",
+		log.debug("Asked to remove {} essence, removing {}, storing {}/{} essence into the {}. Previously stored {}/{} essence.",
 			essenceToRemove,
+			essenceRemoved,
 			this.storedEssence,
 			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
 			previousStoredEssence,
-			this.pouchType.getMaxCapacity());
+			this.pouchType.getMaxCapacity()
+		);
+		return essenceRemoved;
 	}
 
 	/**
@@ -87,7 +91,8 @@ public class EssencePouch
 			essenceToStore,
 			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
-			this.remainingEssenceBeforeDecay);
+			this.remainingEssenceBeforeDecay
+		);
 		// Left-over essence that exceeded maximum capacity
 		// Math.max(0, totalEssenceInInventory - this.pouchType.getMaxCapacity())
 		return essenceToStore;
