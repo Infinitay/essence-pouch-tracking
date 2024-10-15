@@ -1,8 +1,8 @@
 package essencepouchtracking;
 
-import lombok.Getter;
+import lombok.Data;
 
-@Getter
+@Data
 public class PouchActionTask
 {
 	private EssencePouches pouchType;
@@ -12,6 +12,12 @@ public class PouchActionTask
 	{
 		this.pouchType = pouchType;
 		this.action = action.equalsIgnoreCase("Fill") ? PouchAction.FILL : PouchAction.EMPTY;
+	}
+
+	public PouchActionTask(PouchActionTask pouchActionTask)
+	{
+		this.pouchType = pouchActionTask.getPouchType();
+		this.action = pouchActionTask.getAction();
 	}
 
 	public enum PouchAction

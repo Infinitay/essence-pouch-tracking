@@ -81,7 +81,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	@Getter
 	private final Map<EssencePouches, EssencePouch> pouches = new HashMap<>();
-	private final Deque<PouchActionTask> pouchQueue = Queues.newArrayDeque();
+	private final Deque<PouchActionTask> pouchTaskQueue = Queues.newArrayDeque();
 	private Multiset<Integer> previousInventory = HashMultiset.create();
 
 	private boolean isRepairDialogue;
@@ -91,6 +91,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private int previousInventoryFreeSlots, inventoryFreeSlots;
 	private int previousInventoryUsedSlots, inventoryUsedSlots;
 	private boolean blockUpdate;
+	private int pauseUntilTick;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -110,13 +111,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.saveTrackingState();
 		this.previousInventory.clear();
 		this.pouches.clear();
-		this.pouchQueue.clear();
+		this.pouchTaskQueue.clear();
 		this.currentInventoryItems.clear();
 		this.previousEssenceInInventory = this.essenceInInventory = 0;
 		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
 		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
 		this.blockUpdate = false;
 		this.overlayManager.remove(overlay);
+		this.pauseUntilTick = 0;
 	}
 
 	@Subscribe
@@ -234,14 +236,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouchType != null && (menuOption.equals("fill") || menuOption.equals("empty")))
 			{
 				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
-				onPouchActionCreated(new PouchActionCreated(pouchTask));
+				boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
+				this.pouchTaskQueue.add(pouchTask);
+				log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
 			}
 		}
 	}
 
-	public void onPouchActionCreated(PouchActionCreated createdPouchAction)
+	public boolean onPouchActionCreated(PouchActionCreated createdPouchAction)
 	{
-		this.blockUpdate = true;
+		this.pauseUntilTick = this.client.getTickCount() + 1;
 		PouchActionTask pouchAction = createdPouchAction.getPouchActionTask();
 		log.debug("New Pouch Action Received: {}", pouchAction);
 
@@ -268,8 +272,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		if (pouch == null)
 		{
 			log.debug("Pouch {} not found in pouches map so can't do {}", pouchAction.getPouchType(), pouchAction.getAction());
-			this.blockUpdate = false;
-			return;
+			return false;
 		}
 
 		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
@@ -280,15 +283,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouch.isFilled())
 			{
 				log.debug("{} is already full so can't fill it", pouchAction.getPouchType());
-				this.blockUpdate = false;
-				return;
+				return false;
 			}
 			// Now check to see if there's even essence in the inventory
 			if (this.essenceInInventory == 0)
 			{
 				log.debug("No essence in the inventory to fill the {}", pouchAction.getPouchType());
-				this.blockUpdate = false;
-				return;
+				return false;
 			}
 
 			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
@@ -305,34 +306,32 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouch.isEmpty())
 			{
 				log.debug("{} is already empty so can't empty it", pouchAction.getPouchType());
-				this.blockUpdate = false;
-				return;
+				return false;
 			}
 			// Now check to see if there's even space in the inventory
 			if (this.inventoryFreeSlots == 0)
 			{
 				log.debug("No space in the inventory to empty the {}", pouchAction.getPouchType());
-				this.blockUpdate = false;
-				return;
+				return false;
 			}
 			// We meet all the conditions required to empty the pouch into the inventory (we have space to empty some if not all, and the pouch isn't empty)
 			// Find out how much essence we can take out of the pouch
-			int essenceToEmpty = Math.min(this.inventoryFreeSlots, pouch.getStoredEssence());
-			pouch.empty(essenceToEmpty);
-			log.debug("Removed {} essence from the pouch for a total of {}/{}", essenceToEmpty, pouch.getStoredEssence(), pouch.getMaximumCapacity());
-			this.essenceInInventory += essenceToEmpty;
-			this.inventoryUsedSlots += essenceToEmpty;
-			this.inventoryFreeSlots -= essenceToEmpty;
+			int essenceEmptied = pouch.empty(this.inventoryFreeSlots);
+			log.debug("Removed {} essence from the pouch for a total of {}/{}", essenceEmptied, pouch.getStoredEssence(), pouch.getMaximumCapacity());
+			this.essenceInInventory += essenceEmptied;
+			this.inventoryUsedSlots += essenceEmptied;
+			this.inventoryFreeSlots -= essenceEmptied;
 			this.updatePreviousInventoryDetails();
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 		// blockUpdate = false;
 		this.saveTrackingState();
+		return true;
 	}
 
 	public void onBankEssenceTaskCreated(BankEssenceTask createdBankEssenceTask)
 	{
-		this.blockUpdate = true;
+		this.pauseUntilTick = this.client.getTickCount() + 1;
 		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 		// Update the inventory manually in case of tick race conditions when banking
 		if (createdBankEssenceTask.getAction().equals(BankEssenceTask.BankEssenceAction.DEPOSIT))
@@ -355,7 +354,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.updatePreviousInventoryDetails();
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
-		this.blockUpdate = true;
 	}
 
 	@Subscribe
@@ -367,7 +365,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.currentInventoryItems.clear();
 			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
 			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
-			if (!this.blockUpdate)
+			if (this.client.getTickCount() >= this.pauseUntilTick)
 			{
 				this.essenceInInventory = 0;
 				updatePreviousInventoryDetails();
@@ -383,7 +381,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 			else
 			{
 				log.debug("[Inventory Data] Blocked updating the inventory");
-				this.blockUpdate = false;
 			}
 
 			Multiset<Integer> currentInventory = HashMultiset.create();
@@ -396,7 +393,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 			log.debug("Added Items: " + addedItems);
 			log.debug("Removed Items: " + removedItems);
 
-			Map<EssencePouches, Boolean> justDegradedPouches = new HashMap<>();
 			// Now that we've handling inventory state changes, we can handle the pouches
 			// First check if we have any pouches in the inventory in case this is the user's first run or some other issue
 			for (int itemId : addedItems)
@@ -416,13 +412,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 					{
 						currentPouch.setDegraded(true);
 						log.debug("{} has degraded", currentPouch.getPouchType().getName());
-						justDegradedPouches.put(currentPouch.getPouchType(), true);
 						// Re-run the action to update the pouch's state
-						restorePreviousInventoryDetails();
-						PouchActionTask pouchFilLEmpty = new PouchActionTask(currentPouch.getPouchType(), "Empty");
-						PouchActionTask pouchFilLAction = new PouchActionTask(currentPouch.getPouchType(), "Fill");
-						onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
-						onPouchActionCreated(new PouchActionCreated(pouchFilLAction));
+						this.handPouchActionsPostDegrade(currentPouch);
 					}
 				}
 			}
@@ -433,9 +424,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
-		/*if (this.blockUpdate) {
-			this.blockUpdate = false;
-		}*/
+		if (this.client.getTickCount() > this.pauseUntilTick)
+		{
+			this.pouchTaskQueue.clear();
+		}
 		//TODO If there is no repair option then that means no pouch has decayed
 		if (this.isRepairDialogue)
 		{
@@ -593,7 +585,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					client.addChatMessage(ChatMessageType.GAMEMESSAGE, "", "Pouches have been repaired & reset", null);
 				case "!d":
 					log.debug("{}", this.pouches.values());
-					log.debug("{}", this.pouchQueue);
+					log.debug("{}", this.pouchTaskQueue);
 					log.debug("[Inventory Data] Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
 						this.previousEssenceInInventory, this.essenceInInventory,
 						this.previousInventoryFreeSlots, this.inventoryFreeSlots,
@@ -739,6 +731,84 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.essenceInInventory = this.previousEssenceInInventory;
 		this.inventoryFreeSlots = this.previousInventoryFreeSlots;
 		this.inventoryUsedSlots = this.previousInventoryUsedSlots;
+	}
+
+	private void handPouchActionsPostDegrade(EssencePouch degradedPouch)
+	{
+		// Okay so the pouch just degraded. Lets undo the decay amount on the degraded pouch and then handle the filling again
+		PouchActionTask degradedPouchTask = this.pouchTaskQueue.stream().filter(task -> task.getPouchType().equals(degradedPouch.getPouchType())).findFirst().orElse(null);
+		if (degradedPouchTask == null)
+		{
+			log.debug("For some reason, we couldn't find a corresponding degraded pouch task: {}", this.pouchTaskQueue);
+		}
+
+		// Loop through the task queue to get the last actions and restore their counts
+		// Clone the queue so we can modify it as we'll need to re-use the queue to re-run the actions after degrading
+		Deque<PouchActionTask> tempActionQueue = Queues.newArrayDeque();
+		this.pouchTaskQueue.forEach(tempTask -> tempActionQueue.add(new PouchActionTask(tempTask)));
+		log.debug("Before Temp Pouch Task Queue: {}", tempActionQueue);
+
+		// Check to see if we even have any other tasks to fix otherwise we're finished
+		if (tempActionQueue.isEmpty())
+		{
+			return;
+		}
+
+		PouchActionTask task;
+		// Filter out the actions until we remove the degraded pouch
+		while (!(task = tempActionQueue.poll()).getPouchType().equals(degradedPouch.getPouchType()))
+		{
+			// It should always* be FILL because the pouch that degraded was last filled. However just in case, handle empty case.
+			if (degradedPouchTask.getAction().equals(PouchActionTask.PouchAction.FILL))
+			{
+				// Undo the fill
+				int numberOfEssenceEmptied = degradedPouch.empty(this.inventoryFreeSlots);
+				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() + numberOfEssenceEmptied);
+				log.debug("Re-removing {} essence from the now-degraded pouch for a total of {}/{}", numberOfEssenceEmptied, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
+				this.essenceInInventory += numberOfEssenceEmptied;
+				this.inventoryUsedSlots += numberOfEssenceEmptied;
+				this.inventoryFreeSlots -= numberOfEssenceEmptied;
+				this.updatePreviousInventoryDetails();
+				// Now that the pouch has been emptied out, we can re-fill it
+				PouchActionTask pouchFilLAction = new PouchActionTask(degradedPouch.getPouchType(), "Fill");
+				onPouchActionCreated(new PouchActionCreated(pouchFilLAction));
+			}
+			else
+			{
+				// Undo the empty
+				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory);
+				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() - numberOfEssenceRestored);
+				log.debug("Restoring {} essence to the pouch for a total of {}/{}", numberOfEssenceRestored, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
+				this.essenceInInventory -= numberOfEssenceRestored;
+				this.inventoryUsedSlots -= numberOfEssenceRestored;
+				this.inventoryFreeSlots += numberOfEssenceRestored;
+				this.updatePreviousInventoryDetails();
+				// Now that the pouch has been re-filled out, we can re-fill it
+				PouchActionTask pouchFilLEmpty = new PouchActionTask(degradedPouch.getPouchType(), "Empty");
+				onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
+			}
+		}
+		log.debug("After Temp Pouch Task Queue: {}", tempActionQueue);
+
+		// Now re-do the tasks
+		Deque<PouchActionTask> tempOppositeActionQueue = Queues.newArrayDeque();
+		tempActionQueue.forEach(tempTask -> tempOppositeActionQueue.add(new PouchActionTask(tempTask)));
+		log.debug("Before Opposite Actions Queue: {}", tempOppositeActionQueue);
+		while ((task = tempOppositeActionQueue.poll()) != null)
+		{
+			log.debug("Handling opposite for task: {}", task);
+			task.setAction(task.getAction().equals(PouchActionTask.PouchAction.FILL) ? PouchActionTask.PouchAction.EMPTY : PouchActionTask.PouchAction.FILL);
+			onPouchActionCreated(new PouchActionCreated(task));
+		}
+		log.debug("After Opposite Actions Queue: {}", tempOppositeActionQueue);
+
+		while ((task = tempActionQueue.poll()) != null)
+		{
+			log.debug("Now handling the proper task for task: {}", task);
+			onPouchActionCreated(new PouchActionCreated(task));
+		}
+
+		log.debug("Finished re-handling pouch actions post degrade");
 	}
 
 	private void saveTrackingState()
