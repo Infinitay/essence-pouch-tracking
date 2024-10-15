@@ -8,6 +8,7 @@ import java.awt.Rectangle;
 import java.util.Map;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
+import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.WidgetItem;
 import net.runelite.client.ui.overlay.WidgetItemOverlay;
 import net.runelite.client.ui.overlay.components.TextComponent;
@@ -24,6 +25,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 		this.plugin = plugin;
 		this.config = config;
 		showOnInventory();
+		showOnBank();
 	}
 
 	@Override
@@ -58,7 +60,16 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 		String storedEssenceText = unknownState ? "?" : String.valueOf(pouch.getStoredEssence());
 		Rectangle itemBounds = widgetItem.getCanvasBounds();
 		TextComponent storedEssenceTC = new TextComponent();
-		Point storedTextPosition = new Point(itemBounds.x - 1, itemBounds.y + 8);
+		FontMetrics fm = graphics.getFontMetrics();
+		Point storedTextPosition;
+		if (widgetItem.getWidget().getParentId() != ComponentID.BANK_ITEM_CONTAINER)
+		{
+			storedTextPosition = new Point(itemBounds.x, itemBounds.y + 8 + 2);
+		}
+		else
+		{
+			storedTextPosition = new Point(itemBounds.x + itemBounds.width - fm.stringWidth(storedEssenceText), itemBounds.y + 8 + 2);
+		}
 		storedEssenceTC.setPosition(storedTextPosition);
 		storedEssenceTC.setText(storedEssenceText);
 		storedEssenceTC.setColor(Color.RED);
@@ -92,7 +103,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 		}
 		TextComponent remainingTC = new TextComponent();
 		FontMetrics fm = graphics.getFontMetrics();
-		Point remainingTextPosition = new Point(itemBounds.x + itemBounds.width - fm.stringWidth(remainingEssenceText) - 1, itemBounds.y + itemBounds.height);
+		Point remainingTextPosition = new Point(itemBounds.x + itemBounds.width - fm.stringWidth(remainingEssenceText), itemBounds.y + itemBounds.height - 2);
 		remainingTC.setPosition(remainingTextPosition);
 		remainingTC.setText(remainingEssenceText);
 		remainingTC.setColor(Color.WHITE);
