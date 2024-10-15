@@ -90,7 +90,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private int previousEssenceInInventory, essenceInInventory;
 	private int previousInventoryFreeSlots, inventoryFreeSlots;
 	private int previousInventoryUsedSlots, inventoryUsedSlots;
-	private boolean blockUpdate;
 	private int pauseUntilTick;
 
 	@Provides
@@ -103,6 +102,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		this.overlayManager.add(overlay);
+		// Initialize the pouches
+		this.initializePouches();
 	}
 
 	@Override
@@ -116,7 +117,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.previousEssenceInInventory = this.essenceInInventory = 0;
 		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
 		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
-		this.blockUpdate = false;
 		this.overlayManager.remove(overlay);
 		this.pauseUntilTick = 0;
 	}
@@ -167,7 +167,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
 //		ItemContainer currentInventoryContainer = this.getInventoryContainer();
 
-
 		if (menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP) || menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP_LOW_PRIORITY))
 		{
 			String menuOption = menuOptionClicked.getMenuOption().toLowerCase();
@@ -178,13 +177,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 				int itemID = menuOptionClicked.getItemId();
 				String quantity = menuOption.substring(menuOption.indexOf("-") + 1);
 				menuOption = menuOption.substring(0, menuOption.indexOf("-"));
-				log.debug("{} {} x{}", menuOption, itemID, quantity);
 
 				Widget itemWidget = menuOptionClicked.getWidget();
-				if (itemWidget == null)
+				if (itemWidget == null || !isValidEssencePouchItem(itemID))
 				{
 					return;
 				}
+				log.debug("{} {} x{}", menuOption, itemID, quantity);
 				// Should only be used when Withdrawing
 				int totalItemAmount;
 				if (menuOption.equals("withdraw"))
@@ -400,7 +399,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				EssencePouch pouch = EssencePouches.createPouch(itemId);
 				if (pouch != null && !this.pouches.containsKey(pouch.getPouchType()))
 				{
-					pouches.put(pouch.getPouchType(), pouch);
+					this.pouches.put(pouch.getPouchType(), pouch);
 					this.updatePouchFromState(pouch);
 				}
 
@@ -830,6 +829,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			this.trackingState = trackingState;
 			log.debug("Loaded tracking state: {}", trackingState);
+			for (EssencePouches pouchType : this.pouches.keySet())
+			{
+				this.pouches.put(pouchType, trackingState.getPouch(pouchType));
+			}
 		}
 		else
 		{
@@ -877,5 +880,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
 	{
 		return this.gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
+	}
+
+	private void initializePouches()
+	{
+		for (EssencePouches pouch : EssencePouches.values())
+		{
+			this.pouches.put(pouch, new EssencePouch(pouch));
+		}
 	}
 }
