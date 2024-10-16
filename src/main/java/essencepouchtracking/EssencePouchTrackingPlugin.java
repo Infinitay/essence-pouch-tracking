@@ -376,7 +376,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.currentInventoryItems.clear();
 			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
 			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
-			if (this.pauseUntilTick != -1 && this.client.getTickCount() >= this.pauseUntilTick)
+			if (this.pauseUntilTick == -1 || this.client.getTickCount() >= this.pauseUntilTick)
 			{
 				this.essenceInInventory = 0;
 				updatePreviousInventoryDetails();
