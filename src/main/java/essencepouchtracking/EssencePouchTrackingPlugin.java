@@ -103,8 +103,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		this.overlayManager.add(overlay);
-		// Initialize the pouches
-		this.initializePouches();
 		// Load the tracking state
 		this.loadTrackingState();
 	}
@@ -882,7 +880,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			this.trackingState = trackingState;
 			log.debug("Loaded tracking state: {}", trackingState);
-			for (EssencePouches pouchType : this.pouches.keySet())
+			for (EssencePouches pouchType : EssencePouches.values())
 			{
 				this.pouches.put(pouchType, trackingState.getPouch(pouchType));
 			}
@@ -909,6 +907,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			log.debug("Unable to update the tracking state due to the state being null. Initializing the state.");
 			this.trackingState = new EssencePouchTrackingState();
+			// Initialize the pouches
+			for (EssencePouches pouch : EssencePouches.values())
+			{
+				this.pouches.put(pouch, new EssencePouch(pouch));
+			}
 		}
 		this.saveTrackingState();
 	}
@@ -933,13 +936,5 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
 	{
 		return this.gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
-	}
-
-	private void initializePouches()
-	{
-		for (EssencePouches pouch : EssencePouches.values())
-		{
-			this.pouches.put(pouch, new EssencePouch(pouch));
-		}
 	}
 }
