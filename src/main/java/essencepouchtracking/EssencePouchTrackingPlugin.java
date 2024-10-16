@@ -82,6 +82,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private final Map<EssencePouches, EssencePouch> pouches = new HashMap<>();
 	private final Deque<PouchActionTask> pouchTaskQueue = Queues.newArrayDeque();
+	private final Deque<EssencePouch> checkedPouchQueue = Queues.newArrayDeque();
 	private Multiset<Integer> previousInventory = HashMultiset.create();
 
 	private boolean isRepairDialogue;
@@ -113,6 +114,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.previousInventory.clear();
 		this.pouches.clear();
 		this.pouchTaskQueue.clear();
+		this.checkedPouchQueue.clear();
 		this.currentInventoryItems.clear();
 		this.previousEssenceInInventory = this.essenceInInventory = 0;
 		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
@@ -140,6 +142,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.updatePouchFromState(pouch);
 		}
 		this.saveTrackingState();
+		this.pouchTaskQueue.clear();
+		this.checkedPouchQueue.clear();
 		super.resetConfiguration();
 	}
 
@@ -232,12 +236,20 @@ public class EssencePouchTrackingPlugin extends Plugin
 				}
 			}
 			EssencePouches pouchType = EssencePouches.getPouch(menuOptionClicked.getItemId());
-			if (pouchType != null && (menuOption.equals("fill") || menuOption.equals("empty")))
+			if (pouchType != null)
 			{
-				PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
-				boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
-				this.pouchTaskQueue.add(pouchTask);
-				log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
+				if (menuOption.equals("fill") || menuOption.equals("empty"))
+				{
+					PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
+					boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
+					this.pouchTaskQueue.add(pouchTask);
+					log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
+				}
+				else if (menuOption.equals("check"))
+				{
+					this.checkedPouchQueue.add(this.pouches.get(pouchType));
+					this.pauseUntilTick = this.client.getTickCount() + 1;
+				}
 			}
 		}
 	}
@@ -364,7 +376,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.currentInventoryItems.clear();
 			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
 			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
-			if (this.client.getTickCount() >= this.pauseUntilTick)
+			if (this.pauseUntilTick != -1 && this.client.getTickCount() >= this.pauseUntilTick)
 			{
 				this.essenceInInventory = 0;
 				updatePreviousInventoryDetails();
@@ -423,9 +435,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
-		if (this.client.getTickCount() > this.pauseUntilTick)
+		if (this.pauseUntilTick != -1 && this.client.getTickCount() > this.pauseUntilTick)
 		{
 			this.pouchTaskQueue.clear();
+			this.checkedPouchQueue.clear();
+			this.pauseUntilTick = -1;
 		}
 		//TODO If there is no repair option then that means no pouch has decayed
 		if (this.isRepairDialogue)
@@ -505,6 +519,44 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onChatMessage(ChatMessage receivedChatMessage)
 	{
+		String message = receivedChatMessage.getMessage().toLowerCase();
+		if (receivedChatMessage.getType().equals(ChatMessageType.GAMEMESSAGE)
+			&& (message.endsWith("essences in this pouch.") || message.endsWith("essence in this pouch."))
+		)
+		{
+			int numberOfEssence = EssencePouches.checkEssenceStringToInt(message);
+			EssencePouch pouch = this.checkedPouchQueue.poll();
+			if (pouch != null)
+			{
+				int previousStoredEssence = pouch.getStoredEssence();
+				int difference = numberOfEssence - previousStoredEssence;
+
+				// If the difference is negative, then essence was removed from the pouch at some point
+				// If the difference is positive, then essence was added to the pouch at some point
+				// At this point, we could either set the EssencePouch#setUnknownDecay to true because we don't know if the user continued to fill the pouch or not
+				// However, there's no need to complicate things further. Although it's hypocritical in this case, let's not assume that the user had more than one fill action that resulted in the current state
+				log.debug("Pouch {} previously had a state with {} stored essence, now has {} stored essence", pouch.getPouchType().getName(), previousStoredEssence, numberOfEssence);
+				if (difference > 0)
+				{
+					pouch.fill(difference);
+				}
+				else if (difference < 0)
+				{
+					pouch.empty(-difference);
+				}
+				else
+				{
+					// Difference is 0, so nothing has changed
+					pouch.setUnknownStored(false);
+					pouch.setStoredEssence(numberOfEssence);
+				}
+			}
+			else
+			{
+				log.debug("Received a check pouch count message, but there was no more pouches in the queue.");
+			}
+		}
+
 		// Manually set this variable to true to help with debugging. I won't be removing all of this spaghetti in case I need to debug something in the future related with ticks or state
 		boolean isDevMode = false;
 		if (!isDevMode)
@@ -513,7 +565,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 		if (receivedChatMessage.getType().equals(ChatMessageType.PUBLICCHAT) && receivedChatMessage.getName().equalsIgnoreCase(this.client.getLocalPlayer().getName()))
 		{
-			String message = receivedChatMessage.getMessage().toLowerCase();
 			switch (message)
 			{
 				case "!fill s":
