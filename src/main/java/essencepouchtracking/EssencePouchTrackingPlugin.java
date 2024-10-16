@@ -514,6 +514,19 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Bank's custom withdraw/deposit is set with a Varbit
 		// We can also tell whether a pouch is fully filled with a VarPlayer
 		// TODO Use essence pouch VarPlayer to set pouch state when it's unknown, or to verify and update state if need-be
+
+		if (varbitChanged.getVarbitId() == 13688 && varbitChanged.getValue() == 0)
+		{
+			// Clear pouches if a new GOTR game has started
+			this.pouches.values().forEach(EssencePouch::empty);
+			this.saveTrackingState();
+		}
+		else if (varbitChanged.getVarbitId() == 13691 && varbitChanged.getValue() == 0)
+		{
+			// Clear pouches if a player leaves the GOTR portal
+			this.pouches.values().forEach(EssencePouch::empty);
+			this.saveTrackingState();
+		}
 	}
 
 	@Subscribe
