@@ -105,6 +105,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.overlayManager.add(overlay);
 		// Initialize the pouches
 		this.initializePouches();
+		// Load the tracking state
+		this.loadTrackingState();
 	}
 
 	@Override
