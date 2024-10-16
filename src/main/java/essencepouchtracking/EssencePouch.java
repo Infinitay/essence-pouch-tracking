@@ -153,4 +153,10 @@ public class EssencePouch
 	{
 		return this.storedEssence == 0;
 	}
+
+	public void empty()
+	{
+		this.storedEssence = 0;
+		this.setUnknownStored(false);
+	}
 }
