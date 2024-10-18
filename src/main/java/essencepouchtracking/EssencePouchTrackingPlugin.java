@@ -77,21 +77,29 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Inject
 	private EssencePouchTrackingOverlay overlay;
 
+	@Inject
+	private EssencePouchTrackingDebugOverlay debugOverlay;
+
 	private EssencePouchTrackingState trackingState;
 
 	@Getter
 	private final Map<EssencePouches, EssencePouch> pouches = new HashMap<>();
+	@Getter
 	private final Deque<PouchActionTask> pouchTaskQueue = Queues.newArrayDeque();
 	private final Deque<EssencePouch> checkedPouchQueue = Queues.newArrayDeque();
 	private Multiset<Integer> previousInventory = HashMultiset.create();
-
-	private boolean isRepairDialogue;
-
 	private Multiset<Integer> currentInventoryItems = HashMultiset.create();
+
+	@Getter
 	private int previousEssenceInInventory, essenceInInventory;
+	@Getter
 	private int previousInventoryFreeSlots, inventoryFreeSlots;
+	@Getter
 	private int previousInventoryUsedSlots, inventoryUsedSlots;
+
+	@Getter
 	private int pauseUntilTick;
+	private boolean isRepairDialogue;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -103,6 +111,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		this.overlayManager.add(overlay);
+		this.overlayManager.add(debugOverlay);
 		// Load the tracking state
 		this.loadTrackingState();
 	}
@@ -120,6 +129,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
 		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
 		this.overlayManager.remove(overlay);
+		this.overlayManager.remove(debugOverlay);
 		this.pauseUntilTick = 0;
 	}
 
