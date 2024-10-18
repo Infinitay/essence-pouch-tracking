@@ -316,10 +316,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
 			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory);
 			log.debug("Added {} essence to the pouch for a total of {}/{}", essencePutIntoThePouch, pouch.getStoredEssence(), pouch.getMaximumCapacity());
+			this.updatePreviousInventoryDetails();
 			this.essenceInInventory -= essencePutIntoThePouch;
 			this.inventoryUsedSlots -= essencePutIntoThePouch;
 			this.inventoryFreeSlots += essencePutIntoThePouch;
-			this.updatePreviousInventoryDetails();
 		}
 		else
 		{
@@ -339,10 +339,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// Find out how much essence we can take out of the pouch
 			int essenceEmptied = pouch.empty(this.inventoryFreeSlots);
 			log.debug("Removed {} essence from the pouch for a total of {}/{}", essenceEmptied, pouch.getStoredEssence(), pouch.getMaximumCapacity());
+			this.updatePreviousInventoryDetails();
 			this.essenceInInventory += essenceEmptied;
 			this.inventoryUsedSlots += essenceEmptied;
 			this.inventoryFreeSlots -= essenceEmptied;
-			this.updatePreviousInventoryDetails();
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 		// blockUpdate = false;
@@ -359,20 +359,20 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			// Depositing the essence from the players inventory into the bank
 			// Don't worry about the quantity being invalid because this was calculated in onMenuOptionClicked
+			this.updatePreviousInventoryDetails();
 			this.essenceInInventory -= createdBankEssenceTask.getQuantity();
 			this.inventoryUsedSlots -= createdBankEssenceTask.getQuantity();
 			this.inventoryFreeSlots += createdBankEssenceTask.getQuantity();
-			this.updatePreviousInventoryDetails();
 		}
 		else
 		{
 			// Withdrawing the essence from the players bank into their inventory
 			// Remember to check the quantity because the quantity was assigned by the # of the item we have in the bank
 			int maximumEssenceAvailableToWithdraw = Math.min(createdBankEssenceTask.getQuantity(), this.inventoryFreeSlots);
+			this.updatePreviousInventoryDetails();
 			this.essenceInInventory += maximumEssenceAvailableToWithdraw;
 			this.inventoryUsedSlots += maximumEssenceAvailableToWithdraw;
 			this.inventoryFreeSlots -= maximumEssenceAvailableToWithdraw;
-			this.updatePreviousInventoryDetails();
 		}
 		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 	}
@@ -388,8 +388,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
 			if (this.pauseUntilTick == -1 || this.client.getTickCount() >= this.pauseUntilTick)
 			{
+				this.updatePreviousInventoryDetails();
 				this.essenceInInventory = 0;
-				updatePreviousInventoryDetails();
 				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> this.essenceInInventory++);
 				this.inventoryUsedSlots = this.currentInventoryItems.size();
 				this.inventoryFreeSlots = 28 - this.inventoryUsedSlots;
@@ -573,6 +573,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					pouch.setUnknownStored(false);
 					pouch.setStoredEssence(numberOfEssence);
 				}
+				this.updateTrackingState();
 			}
 			else
 			{
@@ -838,10 +839,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 				int numberOfEssenceEmptied = degradedPouch.empty(this.inventoryFreeSlots);
 				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() + numberOfEssenceEmptied);
 				log.debug("Re-removing {} essence from the now-degraded pouch for a total of {}/{}", numberOfEssenceEmptied, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
+				this.updatePreviousInventoryDetails();
 				this.essenceInInventory += numberOfEssenceEmptied;
 				this.inventoryUsedSlots += numberOfEssenceEmptied;
 				this.inventoryFreeSlots -= numberOfEssenceEmptied;
-				this.updatePreviousInventoryDetails();
 				// Now that the pouch has been emptied out, we can re-fill it
 				PouchActionTask pouchFilLAction = new PouchActionTask(degradedPouch.getPouchType(), "Fill");
 				onPouchActionCreated(new PouchActionCreated(pouchFilLAction));
@@ -852,10 +853,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory);
 				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() - numberOfEssenceRestored);
 				log.debug("Restoring {} essence to the pouch for a total of {}/{}", numberOfEssenceRestored, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
+				this.updatePreviousInventoryDetails();
 				this.essenceInInventory -= numberOfEssenceRestored;
 				this.inventoryUsedSlots -= numberOfEssenceRestored;
 				this.inventoryFreeSlots += numberOfEssenceRestored;
-				this.updatePreviousInventoryDetails();
 				// Now that the pouch has been re-filled out, we can re-fill it
 				PouchActionTask pouchFilLEmpty = new PouchActionTask(degradedPouch.getPouchType(), "Empty");
 				onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
