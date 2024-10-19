@@ -851,6 +851,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
 			}
 		}
+		tempActionQueue.addFirst(task);
 		log.debug("After Temp Pouch Task Queue: {}", tempActionQueue);
 
 		// Now re-do the tasks
