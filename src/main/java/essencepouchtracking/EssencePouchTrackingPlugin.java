@@ -16,6 +16,7 @@ import java.util.Objects;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
+import javax.inject.Named;
 import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
@@ -28,13 +29,16 @@ import net.runelite.api.ItemID;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
 import net.runelite.api.NpcID;
+import net.runelite.api.Skill;
 import net.runelite.api.VarClientStr;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.FakeXpDrop;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.ScriptPostFired;
+import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.VarClientStrChanged;
 import net.runelite.api.events.VarbitChanged;
 import net.runelite.api.events.WidgetClosed;
@@ -80,6 +84,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Inject
 	private EssencePouchTrackingDebugOverlay debugOverlay;
 
+	@Inject
+	@Named("developerMode")
+	boolean developerMode;
+
 	private EssencePouchTrackingState trackingState;
 
 	@Getter
@@ -100,6 +108,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private int pauseUntilTick;
 	private boolean isRepairDialogue;
+	// Last action of the tick
+	@Getter
+	private boolean wasLastActionCraftRune;
+	private int lastCraftRuneTick;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -111,7 +123,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 	protected void startUp() throws Exception
 	{
 		this.overlayManager.add(overlay);
-		this.overlayManager.add(debugOverlay);
+		if (developerMode)
+		{
+			this.overlayManager.add(debugOverlay);
+		}
 		// Load the tracking state
 		this.loadTrackingState();
 	}
@@ -129,7 +144,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
 		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
 		this.overlayManager.remove(overlay);
-		this.overlayManager.remove(debugOverlay);
+		if (developerMode)
+		{
+			this.overlayManager.remove(debugOverlay);
+		}
 		this.pauseUntilTick = 0;
 	}
 
@@ -173,9 +191,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
-		log.debug("onMenuOptionClicked: " + this.client.getTickCount());
 		log.debug("{}", menuOptionClicked);
-
+		log.debug("[Inventory Data] MenuOptionClicked Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+			this.previousEssenceInInventory, this.essenceInInventory,
+			this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+			this.previousInventoryUsedSlots, this.inventoryUsedSlots
+		);
+		log.debug("{}", this.pouchTaskQueue);
+		this.wasLastActionCraftRune = false;
 		//TODO All essence is removed from a pouch when it is dropped
 
 		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
@@ -252,8 +275,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
 					boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
-					this.pouchTaskQueue.add(pouchTask);
-					log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
+					if (wasActionSuccessful)
+					{
+						this.pouchTaskQueue.add(pouchTask);
+						log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
+					}
 				}
 				else if (menuOption.equals("check"))
 				{
@@ -262,6 +288,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 				}
 			}
 		}
+
+		// MenuOptionClicked(getParam0=53, getParam1=55, getMenuOption=Craft-rune, getMenuTarget=<col=ffff>Altar, getMenuAction=GAME_OBJECT_FIRST_OPTION, getId=34771)
+		if (menuOptionClicked.getMenuAction().equals(MenuAction.GAME_OBJECT_FIRST_OPTION) && menuOptionClicked.getMenuOption().equalsIgnoreCase("craft-rune"))
+		{
+			// Player has interacted with an Altar to craft runes
+			// Handle the state change after the experience drop which confirms the craft
+			this.wasLastActionCraftRune = true;
+			this.lastCraftRuneTick = this.client.getTickCount();
+		}
 	}
 
 	public boolean onPouchActionCreated(PouchActionCreated createdPouchAction)
@@ -269,7 +304,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.pauseUntilTick = this.client.getTickCount() + 1;
 		PouchActionTask pouchAction = createdPouchAction.getPouchActionTask();
 		log.debug("New Pouch Action Received: {}", pouchAction);
-
+		log.debug("[Inventory Data] PouchActionCreated Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+			this.previousEssenceInInventory, this.essenceInInventory,
+			this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+			this.previousInventoryUsedSlots, this.inventoryUsedSlots
+		);
+		log.debug("{}", this.pouchTaskQueue);
 		// List of possible tasks:
 		// 1. Fill pouch
 		// What could happen when we try to fill a pouch?
@@ -447,9 +487,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (this.pauseUntilTick != -1 && this.client.getTickCount() > this.pauseUntilTick)
 		{
+			log.debug("Unblocking the inventory update and clearing queues");
 			this.pouchTaskQueue.clear();
 			this.checkedPouchQueue.clear();
 			this.pauseUntilTick = -1;
+		}
+		// Wait two ticks just in case the action was delayed for some reason but the craft still went through
+		// Also, it could be the case that the player is running to the altar and hasn't changed their action
+		if (this.lastCraftRuneTick != -1 && this.client.getTickCount() > this.lastCraftRuneTick + 1 && !this.wasLastActionCraftRune)
+		{
+			this.lastCraftRuneTick = -1;
 		}
 		//TODO If there is no repair option then that means no pouch has decayed
 		if (this.isRepairDialogue)
@@ -540,6 +587,80 @@ public class EssencePouchTrackingPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onFakeXpDrop(FakeXpDrop fakeXpDrop)
+	{
+		if (this.wasLastActionCraftRune && fakeXpDrop.getSkill().equals(Skill.RUNECRAFT))
+		{
+			// The last action was crafting runes and xp drop was detected
+			// This should confirm the player crafted runes at an altar successfully and therefore used up essence
+			log.debug("XP drop & craft action detected.");
+			// Make sure there's essence because the onItemChangeContainer could have caught it such as upon the first craft
+			if (this.essenceInInventory == 0)
+			{
+				log.debug("No essence in the inventory despite crafting runes");
+				return;
+			}
+			this.updatePreviousInventoryDetails();
+			this.inventoryUsedSlots -= this.essenceInInventory;
+			this.inventoryFreeSlots += this.essenceInInventory;
+			this.essenceInInventory = 0;
+			log.debug("[Inventory Data] onFakeXpDrop Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+				this.previousEssenceInInventory, this.essenceInInventory,
+				this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+				this.previousInventoryUsedSlots, this.inventoryUsedSlots
+			);
+		}
+	}
+
+	private int lastRCXP = -1;
+
+	@Subscribe
+	public void onStatChanged(StatChanged statChanged)
+	{
+		// Fires every login including when account switching.
+		if (statChanged.getSkill().equals(Skill.RUNECRAFT))
+		{
+			// Courtesy of SpecialCounterPlugin
+			if (statChanged.getXp() > this.lastRCXP)
+			{
+				this.lastRCXP = statChanged.getXp();
+				// The last action was crafting runes and xp drop was detected
+				// This should confirm the player crafted runes at an altar successfully and therefore used up essence
+				log.debug("XP drop & craft action detected.");
+				if (this.lastCraftRuneTick == -1)
+				{
+					log.debug("Received RC XP but lastCraftRuneTick is -1");
+					return;
+				}
+				// Make sure there's essence because the onItemChangeContainer could have caught it such as upon the first craft
+				if (this.essenceInInventory == 0)
+				{
+					log.debug("No essence in the inventory despite crafting runes");
+					return;
+				}
+				this.updatePreviousInventoryDetails();
+				this.inventoryUsedSlots -= this.essenceInInventory;
+				this.inventoryFreeSlots += this.essenceInInventory;
+				this.essenceInInventory = 0;
+				Deque<PouchActionTask> tempActionQueue = Queues.newArrayDeque();
+				PouchActionTask action;
+				this.pouchTaskQueue.stream()
+					.filter(tempTask -> tempTask.getAction().equals(PouchActionTask.PouchAction.EMPTY))
+					.forEach(tempTask -> tempActionQueue.add(new PouchActionTask(tempTask)));
+				while ((action = tempActionQueue.poll()) != null)
+				{
+					this.pouches.get(action.getPouchType()).empty(this.inventoryFreeSlots);
+				}
+				log.debug("[Inventory Data] onStatChanged Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+					this.previousEssenceInInventory, this.essenceInInventory,
+					this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+					this.previousInventoryUsedSlots, this.inventoryUsedSlots
+				);
+			}
+		}
+	}
+
+	@Subscribe
 	public void onChatMessage(ChatMessage receivedChatMessage)
 	{
 		String message = receivedChatMessage.getMessage().toLowerCase();
@@ -581,12 +702,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 			}
 		}
 
-		// Manually set this variable to true to help with debugging. I won't be removing all of this spaghetti in case I need to debug something in the future related with ticks or state
-		boolean isDevMode = false;
-		if (!isDevMode)
+		if (!developerMode)
 		{
 			return;
 		}
+
 		if (receivedChatMessage.getType().equals(ChatMessageType.PUBLICCHAT) && receivedChatMessage.getName().equalsIgnoreCase(this.client.getLocalPlayer().getName()))
 		{
 			switch (message)
