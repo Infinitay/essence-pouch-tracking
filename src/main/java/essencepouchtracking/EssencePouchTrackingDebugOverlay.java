@@ -44,8 +44,11 @@ public class EssencePouchTrackingDebugOverlay extends OverlayPanel
 
 //		boolean isPaused = (this.plugin.getPauseUntilTick() != -1 && this.client.getTickCount() > this.plugin.getPauseUntilTick());
 		boolean isPaused = !(this.plugin.getPauseUntilTick() == -1 || this.client.getTickCount() >= this.plugin.getPauseUntilTick());
+		boolean wasLastActionCraft = this.plugin.isWasLastActionCraftRune();
+
 		buildLine("Current Tick", String.valueOf(this.client.getTickCount()));
 		buildLine("Updates Paused?", String.valueOf(isPaused) + " (" + this.plugin.getPauseUntilTick() + ")");
+		buildLine("Crafted?", String.valueOf(wasLastActionCraft));
 		buildLine("", "");
 		buildLine("Prev Free Slot", String.valueOf(previousInventoryFreeSlots));
 		buildLine("Free Slot", String.valueOf(inventoryFreeSlots));
