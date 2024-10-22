@@ -298,6 +298,25 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.lastCraftRuneTick = this.client.getTickCount();
 			this.pouchTaskQueue.clear();
 		}
+
+		if (menuOptionClicked.getMenuAction().equals(MenuAction.WIDGET_TARGET_ON_GAME_OBJECT))
+		{
+			if (menuOptionClicked.getMenuOption().equalsIgnoreCase("use") && menuOptionClicked.getMenuTarget().endsWith("Altar"))
+			{
+				if (this.client.isWidgetSelected())
+				{
+					int selectedItemID = this.client.getSelectedWidget().getItemId();
+					if (selectedItemID != -1 && this.itemManager.getItemComposition(selectedItemID).getName().endsWith("rune"))
+					{
+						// Player has interacted with an Altar using a rune (attempting to craft combination runes)
+						// Handle the state change after the experience drop which confirms the craft
+						this.wasLastActionCraftRune = true;
+						this.lastCraftRuneTick = this.client.getTickCount();
+						this.pouchTaskQueue.clear();
+					}
+				}
+			}
+		}
 	}
 
 	public boolean onPouchActionCreated(PouchActionCreated createdPouchAction)
