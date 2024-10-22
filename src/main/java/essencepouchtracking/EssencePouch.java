@@ -51,6 +51,7 @@ public class EssencePouch
 	 * Empties the specified amount of essence from the pouch
 	 *
 	 * @param essenceToRemove the number of essence to remove from the pouch
+	 * @return the number of essence that was removed from the pouch
 	 */
 	public int empty(int essenceToRemove)
 	{

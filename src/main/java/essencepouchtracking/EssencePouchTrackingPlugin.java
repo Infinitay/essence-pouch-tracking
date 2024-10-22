@@ -273,9 +273,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 			{
 				if (menuOption.equals("fill") || menuOption.equals("empty"))
 				{
-					PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption);
+					PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption, this.client.getTickCount());
 					boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
-					if (wasActionSuccessful)
+					if (wasActionSuccessful || this.lastCraftRuneTick != -1)
 					{
 						this.pouchTaskQueue.add(pouchTask);
 						log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
@@ -296,6 +296,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// Handle the state change after the experience drop which confirms the craft
 			this.wasLastActionCraftRune = true;
 			this.lastCraftRuneTick = this.client.getTickCount();
+			this.pouchTaskQueue.clear();
 		}
 	}
 
@@ -498,6 +499,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			this.lastCraftRuneTick = -1;
 		}
+
+		// Clear expired actions
+		if (!this.pouchTaskQueue.isEmpty())
+		{
+			this.pouchTaskQueue.removeIf(task -> this.client.getTickCount() > task.getCreatedAtGameTick());
+		}
+
 		//TODO If there is no repair option then that means no pouch has decayed
 		if (this.isRepairDialogue)
 		{
@@ -589,26 +597,46 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onFakeXpDrop(FakeXpDrop fakeXpDrop)
 	{
-		if (this.wasLastActionCraftRune && fakeXpDrop.getSkill().equals(Skill.RUNECRAFT))
+		// Fires every login including when account switching.
+		if (fakeXpDrop.getSkill().equals(Skill.RUNECRAFT))
 		{
-			// The last action was crafting runes and xp drop was detected
-			// This should confirm the player crafted runes at an altar successfully and therefore used up essence
-			log.debug("XP drop & craft action detected.");
-			// Make sure there's essence because the onItemChangeContainer could have caught it such as upon the first craft
-			if (this.essenceInInventory == 0)
+			// Courtesy of SpecialCounterPlugin
+			if (fakeXpDrop.getXp() > this.lastRCXP)
 			{
-				log.debug("No essence in the inventory despite crafting runes");
-				return;
+				this.lastRCXP = fakeXpDrop.getXp();
+				// The last action was crafting runes and xp drop was detected
+				// This should confirm the player crafted runes at an altar successfully and therefore used up essence
+				log.debug("XP drop & craft action detected.");
+				if (this.lastCraftRuneTick == -1)
+				{
+					log.debug("Received RC XP but lastCraftRuneTick is -1");
+					return;
+				}
+				// Make sure there's essence because the onItemChangeContainer could have caught it such as upon the first craft
+				if (this.essenceInInventory == 0)
+				{
+					log.debug("No essence in the inventory despite crafting runes");
+					return;
+				}
+				this.updatePreviousInventoryDetails();
+				this.inventoryUsedSlots -= this.essenceInInventory;
+				this.inventoryFreeSlots += this.essenceInInventory;
+				this.essenceInInventory = 0;
+				Deque<PouchActionTask> tempActionQueue = Queues.newArrayDeque();
+				PouchActionTask action;
+				this.pouchTaskQueue.stream().forEach(tempTask -> tempActionQueue.add(new PouchActionTask(tempTask)));
+				log.debug("Pouch task queue: {}", this.pouchTaskQueue);
+				log.debug("Temp action queue: {}", tempActionQueue);
+				while ((action = tempActionQueue.poll()) != null)
+				{
+					onPouchActionCreated(new PouchActionCreated(action));
+				}
+				log.debug("[Inventory Data] onFakeXpDrop Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+					this.previousEssenceInInventory, this.essenceInInventory,
+					this.previousInventoryFreeSlots, this.inventoryFreeSlots,
+					this.previousInventoryUsedSlots, this.inventoryUsedSlots
+				);
 			}
-			this.updatePreviousInventoryDetails();
-			this.inventoryUsedSlots -= this.essenceInInventory;
-			this.inventoryFreeSlots += this.essenceInInventory;
-			this.essenceInInventory = 0;
-			log.debug("[Inventory Data] onFakeXpDrop Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
-				this.previousEssenceInInventory, this.essenceInInventory,
-				this.previousInventoryFreeSlots, this.inventoryFreeSlots,
-				this.previousInventoryUsedSlots, this.inventoryUsedSlots
-			);
 		}
 	}
 
@@ -644,12 +672,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.essenceInInventory = 0;
 				Deque<PouchActionTask> tempActionQueue = Queues.newArrayDeque();
 				PouchActionTask action;
-				this.pouchTaskQueue.stream()
-					.filter(tempTask -> tempTask.getAction().equals(PouchActionTask.PouchAction.EMPTY))
-					.forEach(tempTask -> tempActionQueue.add(new PouchActionTask(tempTask)));
+				this.pouchTaskQueue.stream().forEach(tempTask -> tempActionQueue.add(new PouchActionTask(tempTask)));
+				log.debug("Pouch task queue: {}", this.pouchTaskQueue);
+				log.debug("Temp action queue: {}", tempActionQueue);
 				while ((action = tempActionQueue.poll()) != null)
 				{
-					this.pouches.get(action.getPouchType()).empty(this.inventoryFreeSlots);
+					onPouchActionCreated(new PouchActionCreated(action));
 				}
 				log.debug("[Inventory Data] onStatChanged Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
 					this.previousEssenceInInventory, this.essenceInInventory,
@@ -964,7 +992,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.inventoryUsedSlots += numberOfEssenceEmptied;
 				this.inventoryFreeSlots -= numberOfEssenceEmptied;
 				// Now that the pouch has been emptied out, we can re-fill it
-				PouchActionTask pouchFilLAction = new PouchActionTask(degradedPouch.getPouchType(), "Fill");
+				PouchActionTask pouchFilLAction = new PouchActionTask(degradedPouch.getPouchType(), "Fill", this.client.getTickCount());
 				onPouchActionCreated(new PouchActionCreated(pouchFilLAction));
 			}
 			else
@@ -978,7 +1006,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.inventoryUsedSlots -= numberOfEssenceRestored;
 				this.inventoryFreeSlots += numberOfEssenceRestored;
 				// Now that the pouch has been re-filled out, we can re-fill it
-				PouchActionTask pouchFilLEmpty = new PouchActionTask(degradedPouch.getPouchType(), "Empty");
+				PouchActionTask pouchFilLEmpty = new PouchActionTask(degradedPouch.getPouchType(), "Empty", this.client.getTickCount());
 				onPouchActionCreated(new PouchActionCreated(pouchFilLEmpty));
 			}
 		}
