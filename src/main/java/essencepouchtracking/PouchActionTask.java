@@ -7,11 +7,13 @@ public class PouchActionTask
 {
 	private EssencePouches pouchType;
 	private PouchAction action;
+	private int createdAtGameTick;
 
-	public PouchActionTask(EssencePouches pouchType, String action)
+	public PouchActionTask(EssencePouches pouchType, String action, int createdAtGameTick)
 	{
 		this.pouchType = pouchType;
 		this.action = action.equalsIgnoreCase("Fill") ? PouchAction.FILL : PouchAction.EMPTY;
+		this.createdAtGameTick = createdAtGameTick;
 	}
 
 	public PouchActionTask(PouchActionTask pouchActionTask)
