@@ -8,12 +8,20 @@ public class PouchActionTask
 	private EssencePouches pouchType;
 	private PouchAction action;
 	private int createdAtGameTick;
+	private boolean wasSuccessful;
+
+	public enum PouchAction
+	{
+		FILL,
+		EMPTY
+	}
 
 	public PouchActionTask(EssencePouches pouchType, String action, int createdAtGameTick)
 	{
 		this.pouchType = pouchType;
 		this.action = action.equalsIgnoreCase("Fill") ? PouchAction.FILL : PouchAction.EMPTY;
 		this.createdAtGameTick = createdAtGameTick;
+		this.wasSuccessful = false;
 	}
 
 	public PouchActionTask(PouchActionTask pouchActionTask)
@@ -22,10 +30,14 @@ public class PouchActionTask
 		this.action = pouchActionTask.getAction();
 	}
 
-	public enum PouchAction
+	public boolean wasSuccessful()
 	{
-		FILL,
-		EMPTY
+		return this.wasSuccessful;
+	}
+
+	public void setWasSuccessful(boolean successful)
+	{
+		this.wasSuccessful = successful;
 	}
 
 	@Override

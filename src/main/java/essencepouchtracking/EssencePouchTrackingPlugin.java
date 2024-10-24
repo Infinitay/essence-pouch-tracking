@@ -277,6 +277,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 					boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
 					if (wasActionSuccessful || this.lastCraftRuneTick != -1)
 					{
+						pouchTask.setWasSuccessful(wasActionSuccessful);
 						this.pouchTaskQueue.add(pouchTask);
 						log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
 					}
@@ -717,6 +718,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			int numberOfEssence = EssencePouches.checkEssenceStringToInt(message);
 			EssencePouch pouch = this.checkedPouchQueue.poll();
+			for (PouchActionTask taskAction : this.pouchTaskQueue)
+			{
+				if (taskAction.getPouchType().equals(pouch.getPouchType()))
+				{
+					if (taskAction.wasSuccessful())
+					{
+						log.debug("Pouch action for {} was successful therefore ignoring pouch check result.", pouch.getPouchType());
+						return;
+					}
+				}
+			}
 			if (pouch != null)
 			{
 				int previousStoredEssence = pouch.getStoredEssence();
