@@ -192,7 +192,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
 		log.debug("{}", menuOptionClicked);
-		log.debug("[Inventory Data] MenuOptionClicked Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
+		log.debug("[Inventory Data] MenuOptionClicked MenuOption | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
 			this.previousEssenceInInventory, this.essenceInInventory,
 			this.previousInventoryFreeSlots, this.inventoryFreeSlots,
 			this.previousInventoryUsedSlots, this.inventoryUsedSlots
@@ -731,6 +731,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 			}
 			if (pouch != null)
 			{
+				for (PouchActionTask taskAction : this.pouchTaskQueue)
+				{
+					if (taskAction.getPouchType().equals(pouch.getPouchType()))
+					{
+						if (taskAction.wasSuccessful())
+						{
+							log.debug("Pouch action for {} was successful therefore ignoring pouch check result.", pouch.getPouchType());
+							return;
+						}
+					}
+				}
 				int previousStoredEssence = pouch.getStoredEssence();
 				int difference = numberOfEssence - previousStoredEssence;
 
