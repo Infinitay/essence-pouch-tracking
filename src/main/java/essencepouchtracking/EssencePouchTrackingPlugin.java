@@ -112,6 +112,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private boolean wasLastActionCraftRune;
 	private int lastCraftRuneTick;
+	private int lastRCXP = -1;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -620,6 +621,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Fires every login including when account switching.
 		if (fakeXpDrop.getSkill().equals(Skill.RUNECRAFT))
 		{
+			// Ignore the initial login xp drop
+			if (this.lastRCXP == -1)
+			{
+				this.lastRCXP = fakeXpDrop.getXp();
+				return;
+			}
 			// Courtesy of SpecialCounterPlugin
 			if (fakeXpDrop.getXp() > this.lastRCXP)
 			{
@@ -660,14 +667,18 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 	}
 
-	private int lastRCXP = -1;
-
 	@Subscribe
 	public void onStatChanged(StatChanged statChanged)
 	{
 		// Fires every login including when account switching.
 		if (statChanged.getSkill().equals(Skill.RUNECRAFT))
 		{
+			// Ignore the initial login xp drop
+			if (this.lastRCXP == -1)
+			{
+				this.lastRCXP = statChanged.getXp();
+				return;
+			}
 			// Courtesy of SpecialCounterPlugin
 			if (statChanged.getXp() > this.lastRCXP)
 			{
