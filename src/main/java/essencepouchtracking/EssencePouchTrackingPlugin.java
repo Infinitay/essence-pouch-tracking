@@ -109,6 +109,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private int pauseUntilTick;
 	private boolean isRepairDialogue;
+	List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
+	List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
+
 	// Last action of the tick
 	@Getter
 	private boolean wasLastActionCraftRune;
@@ -530,31 +533,51 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.pouchTaskQueue.removeIf(task -> this.client.getTickCount() > task.getCreatedAtGameTick());
 		}
 
-		//TODO If there is no repair option then that means no pouch has decayed
 		if (this.isRepairDialogue)
 		{
 			boolean repairedPouches = false;
 
+			// Check if the player is in the dialogue with the Dark Mage to repair pouches
+			// Starting with "Fine" = Dialog to repair
+			// Starting with "There" = Dialog when Repair menu option
+			// Starting with "You" = Dialog when Repair menu option but no pouches to repair
 			Widget dialogNPCHeadModel = this.client.getWidget(ComponentID.DIALOG_NPC_HEAD_MODEL);
 			if (dialogNPCHeadModel != null && dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE)
 			{
 				Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
-				if (dialogText != null && dialogText.getText().equals("Fine. A simple transfiguration spell should resolve things<br>for you."))
+				if (dialogText != null &&
+					(dialogText.getText().equals("Fine. A simple transfiguration spell should resolve things<br>for you.")
+						|| dialogText.getText().equals("There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!")
+						|| dialogText.getText().equals("You don't seem to have any pouches in need of repair.<br>Leave me alone!")))
 				{
 					repairedPouches = true;
 				}
 			}
 
+			// Check if the player is in the dialogue with the Dark Mage to repair pouches
+			// Checks to see i the dialog options are after a repair dialogue or when the pouches are already repaired
 			Widget dialogOptionsWidget = this.client.getWidget(ComponentID.DIALOG_OPTION_OPTIONS);
 			if (dialogOptionsWidget != null && dialogOptionsWidget.getChildren() != null)
 			{
 				List<String> options = Arrays.stream(dialogOptionsWidget.getChildren()).filter(Objects::nonNull).map(Widget::getText).collect(Collectors.toList());
-				List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
-				log.debug("Dialog Option Options: " + options);
-				log.debug("Dialog Options Equals: " + options.equals(POST_REPAIR_DIALOG_OPTIONS));
-				if (options.equals(POST_REPAIR_DIALOG_OPTIONS))
+				if (options.equals(ALREADY_REPAIRED_DIALOG_OPTIONS) || options.equals(POST_REPAIR_DIALOG_OPTIONS))
 				{
 					repairedPouches = true;
+				}
+			}
+
+			// Check to see if the player is in the dialogue with the Dark Mage to repair pouches
+			// Specifically, check to see if the player is asking for pouches to be repaired, and they "Continued" to repair
+			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
+			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
+			{
+				for (Widget widget : dialogPlayerTextWidget.getParent().getStaticChildren())
+				{
+					if (widget.getText().equals("Please wait..."))
+					{
+						repairedPouches = true;
+						break;
+					}
 				}
 			}
 
@@ -576,6 +599,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			case InterfaceID.DIALOG_NPC:
 			case InterfaceID.DIALOG_OPTION:
+			case InterfaceID.DIALOG_PLAYER:
 				this.isRepairDialogue = false;
 				break;
 			default:
@@ -590,6 +614,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			case InterfaceID.DIALOG_NPC:
 			case InterfaceID.DIALOG_OPTION:
+			case InterfaceID.DIALOG_PLAYER:
 				this.isRepairDialogue = true;
 				break;
 			default:
