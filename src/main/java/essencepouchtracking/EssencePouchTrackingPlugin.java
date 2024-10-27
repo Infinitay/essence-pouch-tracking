@@ -325,6 +325,21 @@ public class EssencePouchTrackingPlugin extends Plugin
 				}
 			}
 		}
+
+		// WIDGET_CONTINUE is for when a player clicks an option on a dialog which includes "Click here to continue"
+		if (menuOptionClicked.getMenuAction().equals(MenuAction.WIDGET_CONTINUE))
+		{
+			Widget clickedWidget = menuOptionClicked.getWidget();
+			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
+			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals("Click here to continue") && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
+			{
+				log.debug("Pouches have been repaired via menuoption");
+				this.pouches.values().forEach(EssencePouch::repairPouch);
+				log.debug("{}", this.pouches.values());
+				this.isRepairDialogue = false;
+				this.saveTrackingState();
+			}
+		}
 	}
 
 	public boolean onPouchActionCreated(PouchActionCreated createdPouchAction)
@@ -938,6 +953,22 @@ public class EssencePouchTrackingPlugin extends Plugin
 				log.debug("The input dialogue was not an integer for some reason \"{}\"", this.client.getVarcStrValue(VarClientStr.INPUT_TEXT));
 			}
 			this.bankEssenceTask = null;
+		}
+
+		// 2153 proc,chatbox_keyinput_matched any key pressed matched with the input dialog
+		// So for example space bar to "Click here to continue" or a number key associated with the menu option
+		// Didn't seem to fire for some input dialogs like the threshold to re-enable running or ESC
+		if (this.isRepairDialogue && postFiredScript.getScriptId() == 2153)
+		{
+			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
+			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
+			{
+				log.debug("Pouches have been repaired via script");
+				this.pouches.values().forEach(EssencePouch::repairPouch);
+				log.debug("{}", this.pouches.values());
+				this.isRepairDialogue = false;
+				this.saveTrackingState();
+			}
 		}
 	}
 
