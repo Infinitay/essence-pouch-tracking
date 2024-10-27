@@ -31,6 +31,7 @@ import net.runelite.api.MenuEntry;
 import net.runelite.api.NpcID;
 import net.runelite.api.Skill;
 import net.runelite.api.VarClientStr;
+import net.runelite.api.events.AccountHashChanged;
 import net.runelite.api.events.ChatMessage;
 import net.runelite.api.events.FakeXpDrop;
 import net.runelite.api.events.GameStateChanged;
@@ -136,20 +137,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 	protected void shutDown() throws Exception
 	{
 		this.saveTrackingState();
-		this.previousInventory.clear();
-		this.pouches.clear();
-		this.pouchTaskQueue.clear();
-		this.checkedPouchQueue.clear();
-		this.currentInventoryItems.clear();
-		this.previousEssenceInInventory = this.essenceInInventory = 0;
-		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
-		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
 		this.overlayManager.remove(overlay);
 		if (developerMode)
 		{
 			this.overlayManager.remove(debugOverlay);
 		}
-		this.pauseUntilTick = 0;
 	}
 
 	@Subscribe
@@ -173,8 +165,19 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.saveTrackingState();
 		this.pouchTaskQueue.clear();
 		this.checkedPouchQueue.clear();
+		this.pauseUntilTick = 0;
+		this.isRepairDialogue = false;
+		this.wasLastActionCraftRune = false;
+		this.lastCraftRuneTick = -1;
 		super.resetConfiguration();
 	}
+
+	@Subscribe
+	public void onAccountHashChanged(AccountHashChanged changedAccountHash)
+	{
+		this.resetPluginState();
+	}
+
 
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged)
@@ -1162,5 +1165,22 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
 	{
 		return this.gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
+	}
+
+	private void resetPluginState()
+	{
+		this.previousInventory.clear();
+		this.pouches.clear();
+		this.pouchTaskQueue.clear();
+		this.checkedPouchQueue.clear();
+		this.currentInventoryItems.clear();
+		this.previousEssenceInInventory = this.essenceInInventory = 0;
+		this.previousInventoryFreeSlots = this.inventoryFreeSlots = 0;
+		this.previousInventoryUsedSlots = this.inventoryUsedSlots = 0;
+		this.pauseUntilTick = 0;
+		this.isRepairDialogue = false;
+		this.wasLastActionCraftRune = false;
+		this.lastCraftRuneTick = -1;
+		this.lastRCXP = -1;
 	}
 }
