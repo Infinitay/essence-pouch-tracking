@@ -45,6 +45,7 @@ public class EssencePouch
 		this.remainingEssenceBeforeDecay = this.pouchType.getMaxEssenceBeforeDecay();
 		this.setDegraded(false);
 		this.setUnknownDecay(false);
+		log.debug("Repaired {} back to {} remaining essence before decay.", this.pouchType.getName(), this.pouchType.getMaxEssenceBeforeDecay());
 	}
 
 	/**

@@ -333,11 +333,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
 			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals("Click here to continue") && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
 			{
-				log.debug("Pouches have been repaired via menuoption");
-				this.pouches.values().forEach(EssencePouch::repairPouch);
-				log.debug("{}", this.pouches.values());
-				this.isRepairDialogue = false;
-				this.saveTrackingState();
+				this.repairAllPouches();
 			}
 		}
 	}
@@ -550,8 +546,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 		if (this.isRepairDialogue)
 		{
-			boolean repairedPouches = false;
-
 			// Check if the player is in the dialogue with the Dark Mage to repair pouches
 			// Starting with "Fine" = Dialog to repair
 			// Starting with "There" = Dialog when Repair menu option
@@ -565,7 +559,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 						|| dialogText.getText().equals("There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!")
 						|| dialogText.getText().equals("You don't seem to have any pouches in need of repair.<br>Leave me alone!")))
 				{
-					repairedPouches = true;
+					this.repairAllPouches();
 				}
 			}
 
@@ -577,7 +571,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				List<String> options = Arrays.stream(dialogOptionsWidget.getChildren()).filter(Objects::nonNull).map(Widget::getText).collect(Collectors.toList());
 				if (options.equals(ALREADY_REPAIRED_DIALOG_OPTIONS) || options.equals(POST_REPAIR_DIALOG_OPTIONS))
 				{
-					repairedPouches = true;
+					this.repairAllPouches();
 				}
 			}
 
@@ -590,19 +584,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					if (widget.getText().equals("Please wait..."))
 					{
-						repairedPouches = true;
+						this.repairAllPouches();
 						break;
 					}
 				}
-			}
-
-			if (repairedPouches)
-			{
-				log.debug("Pouches have been repaired");
-				this.pouches.values().forEach(EssencePouch::repairPouch);
-				log.debug("{}", this.pouches.values());
-				this.isRepairDialogue = false;
-				this.saveTrackingState();
 			}
 		}
 	}
@@ -963,11 +948,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
 			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
 			{
-				log.debug("Pouches have been repaired via script");
-				this.pouches.values().forEach(EssencePouch::repairPouch);
-				log.debug("{}", this.pouches.values());
-				this.isRepairDialogue = false;
-				this.saveTrackingState();
+				this.repairAllPouches();
 			}
 		}
 	}
@@ -1238,5 +1219,24 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.wasLastActionCraftRune = false;
 		this.lastCraftRuneTick = -1;
 		this.lastRCXP = -1;
+	}
+
+	private void repairAllPouches()
+	{
+		boolean repaired = false;
+		for (EssencePouch pouch : this.pouches.values())
+		{
+			if (pouch.getApproximateFillsLeft() != 1.0)
+			{
+				pouch.repairPouch();
+				repaired = true;
+			}
+		}
+		if (repaired)
+		{
+			log.debug("Pouches have been repaired");
+			this.isRepairDialogue = false; // To prevent the repair from being triggered again onGameTick
+			this.saveTrackingState();
+		}
 	}
 }
