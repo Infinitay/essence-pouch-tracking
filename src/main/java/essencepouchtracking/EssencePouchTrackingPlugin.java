@@ -96,6 +96,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private final Deque<PouchActionTask> pouchTaskQueue = Queues.newArrayDeque();
 	private final Deque<EssencePouch> checkedPouchQueue = Queues.newArrayDeque();
+	private BankEssenceTask bankEssenceTask;
 	private Multiset<Integer> previousInventory = HashMultiset.create();
 	private Multiset<Integer> currentInventoryItems = HashMultiset.create();
 
@@ -109,11 +110,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private int pauseUntilTick;
 	private boolean isRepairDialogue;
+	private boolean didUnlockGOTRRepair;
 	private final List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
 	private final List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
 	private final List<String> POST_REPAIR_DARK_MAGE_DIALOG_TEXT = ImmutableList.of("Fine. A simple transfiguration spell should resolve things<br>for you.", "There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!", "You don't seem to have any pouches in need of repair.<br>Leave me alone!");
 	private final String REQUEST_REPAIR_PLAYER_DIALOG_TEXT = "Can you repair my pouches?";
 	private final String DIALOG_CONTINUE_TEXT = "Click here to continue";
+	private final String ALREADY_REPAIRED_CORDELIA_DIALOG_TEXT = "You don't seem to have any pouches in need of repair.";
+	private final String REQUEST_REPAIR_CORDELIA_DIALOG_TEXT = "I got someone here in need of a pouch repair.";
+	private final String POST_REPAIR_DARK_MAGE_CORDELIA_DIALOG_TEXT = "OK...It's done.";
+	private final String POST_REPAIR_CORDELIA_DIALOG_TEXT = "Your pouches have been repaired.";
+	private final int APPRENTICE_CORDELIA_WIDGET_MODEL_ID = 6717;
 
 	// Last action of the tick
 	@Getter
@@ -184,7 +191,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.resetPluginState();
 	}
 
-
 	@Subscribe
 	public void onGameStateChanged(GameStateChanged gameStateChanged)
 	{
@@ -195,8 +201,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.loadTrackingState();
 		}
 	}
-
-	private BankEssenceTask bankEssenceTask;
 
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
@@ -337,6 +341,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals(DIALOG_CONTINUE_TEXT) && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
+			}
+			if (this.didUnlockGOTRRepair)
+			{
+				Widget dialogNPCTextWidget = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
+				if (clickedWidget != null && dialogNPCTextWidget != null && clickedWidget.getText().equals(DIALOG_CONTINUE_TEXT) && dialogNPCTextWidget.getText().equals(REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
+				{
+					this.repairAllPouches();
+				}
 			}
 		}
 	}
@@ -554,10 +566,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// Starting with "There" = Dialog when Repair menu option
 			// Starting with "You" = Dialog when Repair menu option but no pouches to repair
 			Widget dialogNPCHeadModel = this.client.getWidget(ComponentID.DIALOG_NPC_HEAD_MODEL);
-			if (dialogNPCHeadModel != null && dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE)
+			Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
+			if (dialogNPCHeadModel != null && dialogText != null)
 			{
-				Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
-				if (dialogText != null && POST_REPAIR_DARK_MAGE_DIALOG_TEXT.contains(dialogText.getText()))
+				if (dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE && (POST_REPAIR_DARK_MAGE_DIALOG_TEXT.contains(dialogText.getText())
+					|| (this.didUnlockGOTRRepair && dialogText.getText().equals(POST_REPAIR_DARK_MAGE_CORDELIA_DIALOG_TEXT))))
+				{
+					this.repairAllPouches();
+				}
+				// Cordelia's NPC ID is 12180 but her model ID when talking to her is 6717
+				if (this.didUnlockGOTRRepair && dialogNPCHeadModel.getModelId() == APPRENTICE_CORDELIA_WIDGET_MODEL_ID && (dialogText.getText().equals(POST_REPAIR_CORDELIA_DIALOG_TEXT)
+					|| dialogText.getText().equals(ALREADY_REPAIRED_CORDELIA_DIALOG_TEXT)))
 				{
 					this.repairAllPouches();
 				}
@@ -625,6 +644,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// Clear pouches if a player leaves the GOTR portal
 			this.pouches.values().forEach(EssencePouch::empty);
 			this.saveTrackingState();
+		}
+		else if (varbitChanged.getVarbitId() == 14672)
+		{
+			// GOTR Pouch Repair Ability
+			this.didUnlockGOTRRepair = varbitChanged.getValue() == 1 ? true : false;
 		}
 	}
 
@@ -928,12 +952,25 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// 2153 proc,chatbox_keyinput_matched any key pressed matched with the input dialog
 		// So for example space bar to "Click here to continue" or a number key associated with the menu option
 		// Didn't seem to fire for some input dialogs like the threshold to re-enable running or ESC
+		// Go through a dialog with mouse clicks only -> No CS2 fired
+		// Go through a dialog with keyboard -> proc,chatbox_keyinput_matched
+		// Go through a dialog with keyboard at least once -> Mouse click dialog interactions -> clientscript,chatbox_keyinput_clicklistener
+		// Go through a dialog with keyboard at least once -> Keyboard dialog interactions -> proc,chatbox_keyinput_matched
 		if (this.isRepairDialogue && postFiredScript.getScriptId() == 2153)
 		{
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
 			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
+				return;
+			}
+			if (this.didUnlockGOTRRepair)
+			{
+				Widget dialogNpcTextWidget = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
+				if (dialogNpcTextWidget != null && dialogNpcTextWidget.getText().equals(REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
+				{
+					this.repairAllPouches();
+				}
 			}
 		}
 	}
