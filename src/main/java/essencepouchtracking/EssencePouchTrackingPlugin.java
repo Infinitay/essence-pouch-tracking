@@ -574,21 +574,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 					this.repairAllPouches();
 				}
 			}
-
-			// Check to see if the player is in the dialogue with the Dark Mage to repair pouches
-			// Specifically, check to see if the player is asking for pouches to be repaired, and they "Continued" to repair
-			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
-			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
-			{
-				for (Widget widget : dialogPlayerTextWidget.getParent().getStaticChildren())
-				{
-					if (widget.getText().equals("Please wait..."))
-					{
-						this.repairAllPouches();
-						break;
-					}
-				}
-			}
 		}
 	}
 
