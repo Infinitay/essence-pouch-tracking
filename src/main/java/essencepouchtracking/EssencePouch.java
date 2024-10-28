@@ -115,7 +115,7 @@ public class EssencePouch
 	{
 		if (this.shouldDegrade)
 		{
-			return this.remainingEssenceBeforeDecay / this.pouchType.getMaxEssenceBeforeDecay();
+			return this.unknownDecay ? Double.MIN_NORMAL : this.remainingEssenceBeforeDecay / this.pouchType.getMaxEssenceBeforeDecay();
 		}
 		else
 		{
