@@ -2,7 +2,7 @@
 
 A RuneLite plugin that tracks both the amount of essence stored in your essence pouches and the amount of essence until decay.
 
-![](preview.png)
+[!Preview](https://github.com/user-attachments/assets/4e704127-92ea-4daf-976c-ae24dc29d8da)
 
 ## Features
 - Supports all essence kinds of essence and essence pouches
