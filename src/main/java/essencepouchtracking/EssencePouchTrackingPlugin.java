@@ -109,8 +109,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Getter
 	private int pauseUntilTick;
 	private boolean isRepairDialogue;
-	List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
-	List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
+	private final List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
+	private final List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
+	private final List<String> POST_REPAIR_DARK_MAGE_DIALOG_TEXT = ImmutableList.of("Fine. A simple transfiguration spell should resolve things<br>for you.", "There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!", "You don't seem to have any pouches in need of repair.<br>Leave me alone!");
+	private final String REQUEST_REPAIR_PLAYER_DIALOG_TEXT = "Can you repair my pouches?";
+	private final String DIALOG_CONTINUE_TEXT = "Click here to continue";
 
 	// Last action of the tick
 	@Getter
@@ -331,7 +334,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			Widget clickedWidget = menuOptionClicked.getWidget();
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
-			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals("Click here to continue") && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
+			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals(DIALOG_CONTINUE_TEXT) && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
 			}
@@ -554,10 +557,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (dialogNPCHeadModel != null && dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE)
 			{
 				Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
-				if (dialogText != null &&
-					(dialogText.getText().equals("Fine. A simple transfiguration spell should resolve things<br>for you.")
-						|| dialogText.getText().equals("There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!")
-						|| dialogText.getText().equals("You don't seem to have any pouches in need of repair.<br>Leave me alone!")))
+				if (dialogText != null && POST_REPAIR_DARK_MAGE_DIALOG_TEXT.contains(dialogText.getText()))
 				{
 					this.repairAllPouches();
 				}
@@ -931,7 +931,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		if (this.isRepairDialogue && postFiredScript.getScriptId() == 2153)
 		{
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
-			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals("Can you repair my pouches?"))
+			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
 			}
@@ -1211,7 +1211,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		boolean repaired = false;
 		for (EssencePouch pouch : this.pouches.values())
 		{
-			if (pouch.getApproximateFillsLeft() != 1.0)
+			if (pouch.getApproximateFillsLeft() != 1.0 || pouch.isUnknownDecay())
 			{
 				pouch.repairPouch();
 				repaired = true;
