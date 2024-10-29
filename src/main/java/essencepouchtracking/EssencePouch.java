@@ -76,14 +76,15 @@ public class EssencePouch
 	 * Fills the pouch with essence until it's full or as much essence that was given
 	 *
 	 * @param totalEssenceInInventory
+	 * @param ignoreDecay             should the pouch ignore decay when filling such as when wearing specialized equipment that prevents decay
 	 * @return the number of essence that stored within the pouch
 	 * Example: totalEssenceInInventory=10, storedEssence=3, getMaximumCapacity()=12 => return 1 (10+3 = 13 - 12 = 1 left over)
 	 */
-	public int fill(int totalEssenceInInventory)
+	public int fill(int totalEssenceInInventory, boolean ignoreDecay)
 	{
 		int essenceToStore = Math.min(totalEssenceInInventory, this.getAvailableSpace());
 		this.storedEssence += essenceToStore;
-		if (this.shouldDegrade)
+		if (this.shouldDegrade && !ignoreDecay)
 		{
 			this.remainingEssenceBeforeDecay -= essenceToStore;
 		}

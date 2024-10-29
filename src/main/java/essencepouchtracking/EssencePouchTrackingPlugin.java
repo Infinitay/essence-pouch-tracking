@@ -2,17 +2,20 @@ package essencepouchtracking;
 
 import com.google.common.collect.HashMultiset;
 import com.google.common.collect.ImmutableList;
+import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
 import com.google.common.collect.Queues;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import javax.inject.Inject;
@@ -21,6 +24,7 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.ChatMessageType;
 import net.runelite.api.Client;
+import net.runelite.api.EquipmentInventorySlot;
 import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
@@ -51,6 +55,7 @@ import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
+import net.runelite.client.game.ItemVariationMapping;
 import net.runelite.client.plugins.Plugin;
 import net.runelite.client.plugins.PluginDescriptor;
 import net.runelite.client.ui.overlay.OverlayManager;
@@ -113,7 +118,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean didUnlockGOTRRepair;
 	private final List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
 	private final List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
-	private final List<String> POST_REPAIR_DARK_MAGE_DIALOG_TEXT = ImmutableList.of("Fine. A simple transfiguration spell should resolve things<br>for you.", "There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!", "You don't seem to have any pouches in need of repair.<br>Leave me alone!");
+	private final Set<String> POST_REPAIR_DARK_MAGE_DIALOG_TEXT = ImmutableSet.of("Fine. A simple transfiguration spell should resolve things<br>for you.", "There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!", "You don't seem to have any pouches in need of repair.<br>Leave me alone!");
 	private final String REQUEST_REPAIR_PLAYER_DIALOG_TEXT = "Can you repair my pouches?";
 	private final String DIALOG_CONTINUE_TEXT = "Click here to continue";
 	private final String ALREADY_REPAIRED_CORDELIA_DIALOG_TEXT = "You don't seem to have any pouches in need of repair.";
@@ -127,6 +132,25 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean wasLastActionCraftRune;
 	private int lastCraftRuneTick;
 	private int lastRCXP = -1;
+
+	private final Set<Integer> RC_CAPES_SET = ImmutableSet.<Integer>builder().addAll(this.getItemVariants(ItemID.RUNECRAFT_CAPE))
+		.addAll(this.getItemVariants(ItemID.MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.ACCUMULATOR_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.ASSEMBLER_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.MASORI_ASSEMBLER_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.DIZANAS_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.FIRE_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.INFERNAL_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.IMBUED_GUTHIX_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.IMBUED_SARADOMIN_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.IMBUED_ZAMORAK_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.MYTHICAL_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.GUTHIX_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.SARADOMIN_MAX_CAPE))
+		.addAll(this.getItemVariants(ItemID.ZAMORAK_MAX_CAPE))
+		.build();
+	private boolean shouldPreventFurtherDecay;
+	private boolean isInsideGOTRMinigame;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -408,7 +432,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			}
 
 			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
-			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory);
+			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay);
 			log.debug("Added {} essence to the pouch for a total of {}/{}", essencePutIntoThePouch, pouch.getStoredEssence(), pouch.getMaximumCapacity());
 			this.updatePreviousInventoryDetails();
 			this.essenceInInventory -= essencePutIntoThePouch;
@@ -474,7 +498,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged itemContainerChanged)
 	{
-		// Make sure we're only focusing on the inventory
 		if (itemContainerChanged.getContainerId() == InventoryID.INVENTORY.getId())
 		{
 			this.currentInventoryItems.clear();
@@ -533,6 +556,29 @@ public class EssencePouchTrackingPlugin extends Plugin
 				}
 			}
 			this.previousInventory = currentInventory;
+		}
+		else if (itemContainerChanged.getContainerId() == InventoryID.EQUIPMENT.getId())
+		{
+			Item capeItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.CAPE.getSlotIdx());
+			if (capeItem != null && this.RC_CAPES_SET.contains(capeItem.getId()))
+			{
+				log.debug("Player equipped a specialized cape. Shouldn't decay pouches further.");
+				this.shouldPreventFurtherDecay = true;
+			}
+			else
+			{
+				Item offHandItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.SHIELD.getSlotIdx());
+				if (this.isInsideGOTRMinigame && offHandItem != null && offHandItem.getId() == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS)
+				{
+					log.debug("Player equipped an Abyssal lantern (redwood logs). Shouldn't decay pouches further.");
+					this.shouldPreventFurtherDecay = true;
+				}
+				else
+				{
+					log.debug("Player unequipped a specialized cape. Should decay pouches further.");
+					this.shouldPreventFurtherDecay = false;
+				}
+			}
 		}
 	}
 
@@ -639,11 +685,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.pouches.values().forEach(EssencePouch::empty);
 			this.saveTrackingState();
 		}
-		else if (varbitChanged.getVarbitId() == 13691 && varbitChanged.getValue() == 0)
+		else if (varbitChanged.getVarbitId() == 13691)
 		{
-			// Clear pouches if a player leaves the GOTR portal
-			this.pouches.values().forEach(EssencePouch::empty);
-			this.saveTrackingState();
+			if (varbitChanged.getValue() == 0)
+			{
+				// Clear pouches if a player leaves the GOTR portal
+				this.pouches.values().forEach(EssencePouch::empty);
+				this.saveTrackingState();
+			}
+			this.isInsideGOTRMinigame = varbitChanged.getValue() == 1 ? true : false;
 		}
 		else if (varbitChanged.getVarbitId() == 14672)
 		{
@@ -800,7 +850,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				log.debug("Pouch {} previously had a state with {} stored essence, now has {} stored essence", pouch.getPouchType().getName(), previousStoredEssence, numberOfEssence);
 				if (difference > 0)
 				{
-					pouch.fill(difference);
+					pouch.fill(difference, this.shouldPreventFurtherDecay);
 				}
 				else if (difference < 0)
 				{
@@ -1048,7 +1098,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private ItemContainer getInventoryContainer()
 	{
-		return this.client.getItemContainer(InventoryID.INVENTORY.getId());
+		return this.client.getItemContainer(InventoryID.INVENTORY);
+	}
+
+	private ItemContainer getEquipmentContainer()
+	{
+		return this.client.getItemContainer(InventoryID.EQUIPMENT);
+	}
+
+	private Collection<Integer> getItemVariants(int itemID)
+	{
+		return ItemVariationMapping.getVariations(itemID);
 	}
 
 	private Predicate<Item> filterNullItemsPredicate()
@@ -1113,7 +1173,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			else
 			{
 				// Undo the empty
-				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory);
+				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay);
 				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() - numberOfEssenceRestored);
 				log.debug("Restoring {} essence to the pouch for a total of {}/{}", numberOfEssenceRestored, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
 				this.updatePreviousInventoryDetails();
