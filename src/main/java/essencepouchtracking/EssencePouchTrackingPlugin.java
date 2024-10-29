@@ -149,8 +149,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 		.addAll(this.getItemVariants(ItemID.SARADOMIN_MAX_CAPE))
 		.addAll(this.getItemVariants(ItemID.ZAMORAK_MAX_CAPE))
 		.build();
-	private boolean shouldPreventFurtherDecay;
-	private boolean isInsideGOTRMinigame;
+	private boolean isCapeDecayPreventionActive;
+	private boolean hasRedwoodAbyssalLantern;
+	private boolean isLanternDecayPreventionAvailable;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -432,7 +433,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			}
 
 			// We meet all the conditions required to fill the pouch with essence (we have essence and the pouch isn't full)
-			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay);
+			int essencePutIntoThePouch = pouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay());
 			log.debug("Added {} essence to the pouch for a total of {}/{}", essencePutIntoThePouch, pouch.getStoredEssence(), pouch.getMaximumCapacity());
 			this.updatePreviousInventoryDetails();
 			this.essenceInInventory -= essencePutIntoThePouch;
@@ -554,31 +555,43 @@ public class EssencePouchTrackingPlugin extends Plugin
 						this.handPouchActionsPostDegrade(currentPouch);
 					}
 				}
+
+				// Check to see if the player has an Abyssal Lantern (Redwood) in their inventory
+				if (itemId == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS)
+				{
+					this.hasRedwoodAbyssalLantern = true;
+					log.debug("Player added a Redwood Lantern in their inventory.");
+				}
+			}
+
+			if (removedItems.contains(ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS))
+			{
+				this.hasRedwoodAbyssalLantern = false;
+				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
 			this.previousInventory = currentInventory;
 		}
 		else if (itemContainerChanged.getContainerId() == InventoryID.EQUIPMENT.getId())
 		{
 			Item capeItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.CAPE.getSlotIdx());
-			if (capeItem != null && this.RC_CAPES_SET.contains(capeItem.getId()))
+			boolean hasEquippedSpecialCape = capeItem != null && this.RC_CAPES_SET.contains(capeItem.getId());
+			if (this.isCapeDecayPreventionActive != hasEquippedSpecialCape)
 			{
-				log.debug("Player equipped a specialized cape. Shouldn't decay pouches further.");
-				this.shouldPreventFurtherDecay = true;
+				this.isCapeDecayPreventionActive = hasEquippedSpecialCape;
+				log.debug("Player {} a specialized cape. {} decay pouches further.",
+					hasEquippedSpecialCape ? "equipped" : "unequipped",
+					hasEquippedSpecialCape ? "Shouldn't" : "Should");
 			}
-			else
+
+			Item offHandItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.SHIELD.getSlotIdx());
+			boolean hasEquippedLantern = offHandItem != null && offHandItem.getId() == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS;
+			if (this.hasRedwoodAbyssalLantern != hasEquippedLantern)
 			{
-				Item offHandItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.SHIELD.getSlotIdx());
-				if (this.isInsideGOTRMinigame && offHandItem != null && offHandItem.getId() == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS)
-				{
-					log.debug("Player equipped an Abyssal lantern (redwood logs). Shouldn't decay pouches further.");
-					this.shouldPreventFurtherDecay = true;
-				}
-				else
-				{
-					log.debug("Player unequipped a specialized cape. Should decay pouches further.");
-					this.shouldPreventFurtherDecay = false;
-				}
+				log.debug("Player {} an Abyssal lantern (redwood logs).", hasEquippedLantern ? "equipped" : "unequipped");
 			}
+			// this.hasRedwoodAbyssalLantern is true but hasEquippedLantern is false means the player unequipped the lantern => we still have lantern so this.hasRedwoodAbyssalLantern should still be true
+			// this.hasRedwoodAbyssalLantern is false but hasEquippedLantern is true means the player equipped the lantern => we now have the lantern so this.hasRedwoodAbyssalLantern should be true
+			this.hasRedwoodAbyssalLantern = this.hasRedwoodAbyssalLantern || hasEquippedLantern;
 		}
 	}
 
@@ -667,6 +680,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 			case InterfaceID.DIALOG_PLAYER:
 				this.isRepairDialogue = true;
 				break;
+			case InterfaceID.GOTR:
+				log.debug("GOTR interface loaded");
+				this.isLanternDecayPreventionAvailable = true;
+				break;
 			default:
 				break;
 		}
@@ -685,15 +702,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.pouches.values().forEach(EssencePouch::empty);
 			this.saveTrackingState();
 		}
-		else if (varbitChanged.getVarbitId() == 13691)
+		else if (varbitChanged.getVarbitId() == 13691 && varbitChanged.getValue() == 0)
 		{
-			if (varbitChanged.getValue() == 0)
-			{
-				// Clear pouches if a player leaves the GOTR portal
-				this.pouches.values().forEach(EssencePouch::empty);
-				this.saveTrackingState();
-			}
-			this.isInsideGOTRMinigame = varbitChanged.getValue() == 1 ? true : false;
+			// Clear pouches if a player leaves the GOTR portal
+			this.pouches.values().forEach(EssencePouch::empty);
+			this.saveTrackingState();
+			log.debug("Player has left the GOTR portal");
+			this.isLanternDecayPreventionAvailable = false;
 		}
 		else if (varbitChanged.getVarbitId() == 14672)
 		{
@@ -850,7 +865,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				log.debug("Pouch {} previously had a state with {} stored essence, now has {} stored essence", pouch.getPouchType().getName(), previousStoredEssence, numberOfEssence);
 				if (difference > 0)
 				{
-					pouch.fill(difference, this.shouldPreventFurtherDecay);
+					pouch.fill(difference, this.shouldPreventFurtherDecay());
 				}
 				else if (difference < 0)
 				{
@@ -1173,7 +1188,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			else
 			{
 				// Undo the empty
-				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay);
+				int numberOfEssenceRestored = degradedPouch.fill(this.essenceInInventory, this.shouldPreventFurtherDecay());
 				degradedPouch.setRemainingEssenceBeforeDecay(degradedPouch.getRemainingEssenceBeforeDecay() - numberOfEssenceRestored);
 				log.debug("Restoring {} essence to the pouch for a total of {}/{}", numberOfEssenceRestored, degradedPouch.getStoredEssence(), degradedPouch.getMaximumCapacity());
 				this.updatePreviousInventoryDetails();
@@ -1319,6 +1334,24 @@ public class EssencePouchTrackingPlugin extends Plugin
 			log.debug("Pouches have been repaired");
 			this.isRepairDialogue = false; // To prevent the repair from being triggered again onGameTick
 			this.saveTrackingState();
+		}
+	}
+
+	private boolean shouldPreventFurtherDecay()
+	{
+		// Prevent decay if the player has a speciality cape equipped
+		// Prevent decay if the player has an abyssal lantern equipped or their inventory while lantern prevention is available
+		if (this.isCapeDecayPreventionActive)
+		{
+			return true;
+		}
+		else if (this.isLanternDecayPreventionAvailable)
+		{
+			return this.hasRedwoodAbyssalLantern;
+		}
+		else
+		{
+			return false;
 		}
 	}
 }
