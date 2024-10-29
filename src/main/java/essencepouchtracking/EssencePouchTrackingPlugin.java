@@ -150,7 +150,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 		.addAll(this.getItemVariants(ItemID.ZAMORAK_MAX_CAPE))
 		.build();
 	private boolean isCapeDecayPreventionActive;
-	private boolean hasRedwoodAbyssalLantern;
+	private boolean hasRedwoodAbyssalLanternEquipped;
+	private boolean hasRedwoodAbyssalLanternInInventory;
 	private boolean isLanternDecayPreventionAvailable;
 
 	@Provides
@@ -499,6 +500,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onItemContainerChanged(ItemContainerChanged itemContainerChanged)
 	{
+		// In case of unequipping an item -> INVENTORY -> EQUIPMENT changes
 		if (itemContainerChanged.getContainerId() == InventoryID.INVENTORY.getId())
 		{
 			this.currentInventoryItems.clear();
@@ -559,14 +561,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 				// Check to see if the player has an Abyssal Lantern (Redwood) in their inventory
 				if (itemId == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS)
 				{
-					this.hasRedwoodAbyssalLantern = true;
+					this.hasRedwoodAbyssalLanternInInventory = true;
 					log.debug("Player added a Redwood Lantern in their inventory.");
 				}
 			}
 
 			if (removedItems.contains(ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS))
 			{
-				this.hasRedwoodAbyssalLantern = false;
+				this.hasRedwoodAbyssalLanternInInventory = false;
 				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
 			this.previousInventory = currentInventory;
@@ -585,13 +587,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 			Item offHandItem = this.getEquipmentContainer().getItem(EquipmentInventorySlot.SHIELD.getSlotIdx());
 			boolean hasEquippedLantern = offHandItem != null && offHandItem.getId() == ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS;
-			if (this.hasRedwoodAbyssalLantern != hasEquippedLantern)
+
+			// If the lantern is equipped => this.hasRedwoodAbyssalLantern = true
+			// If the lantern is not equipped
+			//     a. If the lantern is in our inventory => this.hasRedwoodAbyssalLantern = true
+			//     b. If the lantern is not in our inventory => this.hasRedwoodAbyssalLantern = false
+			if (hasEquippedLantern != this.hasRedwoodAbyssalLanternEquipped)
 			{
-				log.debug("Player {} an Abyssal lantern (redwood logs).", hasEquippedLantern ? "equipped" : "unequipped");
+				log.debug("Player {} the Redwood Lantern.", hasEquippedLantern ? "equipped" : "unequipped");
+				this.hasRedwoodAbyssalLanternEquipped = hasEquippedLantern;
 			}
-			// this.hasRedwoodAbyssalLantern is true but hasEquippedLantern is false means the player unequipped the lantern => we still have lantern so this.hasRedwoodAbyssalLantern should still be true
-			// this.hasRedwoodAbyssalLantern is false but hasEquippedLantern is true means the player equipped the lantern => we now have the lantern so this.hasRedwoodAbyssalLantern should be true
-			this.hasRedwoodAbyssalLantern = this.hasRedwoodAbyssalLantern || hasEquippedLantern;
 		}
 	}
 
@@ -1337,6 +1342,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 	}
 
+	private boolean hasRedwoodAbyssalLantern()
+	{
+		return this.hasRedwoodAbyssalLanternEquipped || this.hasRedwoodAbyssalLanternInInventory;
+	}
+
 	private boolean shouldPreventFurtherDecay()
 	{
 		// Prevent decay if the player has a speciality cape equipped
@@ -1347,7 +1357,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		}
 		else if (this.isLanternDecayPreventionAvailable)
 		{
-			return this.hasRedwoodAbyssalLantern;
+			return this.hasRedwoodAbyssalLantern();
 		}
 		else
 		{
