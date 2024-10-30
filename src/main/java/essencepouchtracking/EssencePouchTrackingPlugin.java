@@ -209,8 +209,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 	public void resetConfiguration()
 	{
 		log.debug("Resetting the plugin and tracking states");
-		this.resetTrackingState();
+		// First reset plugin state followed by tracking state in order to initialize all pouches back into this.pouches
 		this.resetPluginState();
+		this.resetTrackingState();
 		this.clientThread.invokeLater(() -> {
 			if (this.client.getGameState().equals(GameState.LOGGED_IN))
 			{
@@ -1328,13 +1329,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	private void resetTrackingState()
 	{
-		log.debug("Resetting tracking state");
-		this.trackingState = new EssencePouchTrackingState();
-		for (EssencePouch pouch : this.pouches.values())
-		{
-			this.updatePouchFromState(pouch);
-		}
-		this.saveTrackingState();
+		log.debug("Resetting tracking state via #updateTrackingState");
+		this.trackingState = null;
+		this.updateTrackingState();
 	}
 
 	private void resetPluginState()
