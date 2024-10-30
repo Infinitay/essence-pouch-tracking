@@ -51,6 +51,7 @@ import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.InterfaceID;
 import net.runelite.api.widgets.Widget;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -68,6 +69,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 {
 	@Inject
 	private Client client;
+
+	@Inject
+	private ClientThread clientThread;
 
 	@Inject
 	private EssencePouchTrackingConfig config;
@@ -163,18 +167,27 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Override
 	protected void startUp() throws Exception
 	{
+		log.debug("Loading the tracking state on plugin start");
+		// Load the tracking state
+		this.loadTrackingState();
 		this.overlayManager.add(overlay);
 		if (developerMode)
 		{
 			this.overlayManager.add(debugOverlay);
 		}
-		// Load the tracking state
-		this.loadTrackingState();
+		this.clientThread.invokeLater(() -> {
+			if (this.client.getGameState().equals(GameState.LOGGED_IN))
+			{
+				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1 ? true : false;
+			}
+		});
 	}
 
 	@Override
 	protected void shutDown() throws Exception
 	{
+		log.debug("Resetting the plugin state and saving the tracking state before plugin shutting down");
+		this.resetPluginState();
 		this.saveTrackingState();
 		this.overlayManager.remove(overlay);
 		if (developerMode)
@@ -195,19 +208,26 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Override
 	public void resetConfiguration()
 	{
-		log.debug("Resetting tracking state");
-		this.trackingState = new EssencePouchTrackingState();
-		for (EssencePouch pouch : pouches.values())
-		{
-			this.updatePouchFromState(pouch);
-		}
-		this.saveTrackingState();
-		this.pouchTaskQueue.clear();
-		this.checkedPouchQueue.clear();
-		this.pauseUntilTick = 0;
-		this.isRepairDialogue = false;
-		this.wasLastActionCraftRune = false;
-		this.lastCraftRuneTick = -1;
+		log.debug("Resetting the plugin and tracking states");
+		this.resetTrackingState();
+		this.resetPluginState();
+		this.clientThread.invokeLater(() -> {
+			if (this.client.getGameState().equals(GameState.LOGGED_IN))
+			{
+				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1 ? true : false;
+				// Player is already logged in, so reload inventory and equipment data by resending the events
+				ItemContainer currentInventory = this.client.getItemContainer(InventoryID.INVENTORY);
+				ItemContainer currentEquipment = this.client.getItemContainer(InventoryID.EQUIPMENT);
+				if (currentInventory != null)
+				{
+					this.onItemContainerChanged(new ItemContainerChanged(InventoryID.INVENTORY.getId(), currentInventory));
+				}
+				if (currentEquipment != null)
+				{
+					this.onItemContainerChanged(new ItemContainerChanged(InventoryID.EQUIPMENT.getId(), currentEquipment));
+				}
+			}
+		});
 		super.resetConfiguration();
 	}
 
@@ -1278,7 +1298,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// Initialize the pouches
 			for (EssencePouches pouch : EssencePouches.values())
 			{
-				this.pouches.put(pouch, new EssencePouch(pouch));
+				this.pouches.put(pouch, this.trackingState.getPouch(pouch));
 			}
 		}
 		this.saveTrackingState();
@@ -1304,6 +1324,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private EssencePouchTrackingState deserializeState(String serializedStateAsJSON)
 	{
 		return this.gson.fromJson(serializedStateAsJSON, EssencePouchTrackingState.class);
+	}
+
+	private void resetTrackingState()
+	{
+		log.debug("Resetting tracking state");
+		this.trackingState = new EssencePouchTrackingState();
+		for (EssencePouch pouch : this.pouches.values())
+		{
+			this.updatePouchFromState(pouch);
+		}
+		this.saveTrackingState();
 	}
 
 	private void resetPluginState()
