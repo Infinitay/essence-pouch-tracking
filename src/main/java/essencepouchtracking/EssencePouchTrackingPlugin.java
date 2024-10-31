@@ -1362,8 +1362,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private void repairAllPouches()
 	{
 		boolean repaired = false;
-		for (EssencePouch pouch : this.pouches.values())
+		for (EssencePouches pouchType : EssencePouches.values())
 		{
+			EssencePouch pouch = this.trackingState.getPouch(pouchType);
 			if (pouch.getApproximateFillsLeft() != 1.0 || pouch.isUnknownDecay())
 			{
 				pouch.repairPouch();
