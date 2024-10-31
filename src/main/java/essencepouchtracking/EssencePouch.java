@@ -56,6 +56,10 @@ public class EssencePouch
 	 */
 	public int empty(int essenceToRemove)
 	{
+		if (this.isUnknownStored())
+		{
+			return 0;
+		}
 		int previousStoredEssence = this.storedEssence;
 		int essenceRemoved = Math.min(essenceToRemove, this.storedEssence);
 		this.storedEssence -= essenceRemoved;
@@ -82,9 +86,13 @@ public class EssencePouch
 	 */
 	public int fill(int totalEssenceInInventory, boolean ignoreDecay)
 	{
+		if (this.isUnknownStored())
+		{
+			return 0;
+		}
 		int essenceToStore = Math.min(totalEssenceInInventory, this.getAvailableSpace());
 		this.storedEssence += essenceToStore;
-		if (this.shouldDegrade && !ignoreDecay)
+		if (this.shouldDegrade && !ignoreDecay && !this.isUnknownDecay())
 		{
 			this.remainingEssenceBeforeDecay -= essenceToStore;
 		}
@@ -157,7 +165,7 @@ public class EssencePouch
 		return this.storedEssence == 0;
 	}
 
-	public void empty()
+	public void resetStored()
 	{
 		this.storedEssence = 0;
 		this.setUnknownStored(false);

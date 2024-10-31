@@ -733,13 +733,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 		if (varbitChanged.getVarbitId() == 13688 && varbitChanged.getValue() == 0)
 		{
 			// Clear pouches if a new GOTR game has started
-			this.pouches.values().forEach(EssencePouch::empty);
+			this.pouches.values().forEach(EssencePouch::resetStored);
 			this.saveTrackingState();
 		}
 		else if (varbitChanged.getVarbitId() == 13691 && varbitChanged.getValue() == 0)
 		{
 			// Clear pouches if a player leaves the GOTR portal
-			this.pouches.values().forEach(EssencePouch::empty);
+			this.pouches.values().forEach(EssencePouch::resetStored);
 			this.saveTrackingState();
 			log.debug("Player has left the GOTR portal");
 			this.isLanternDecayPreventionAvailable = false;
