@@ -22,6 +22,11 @@ public class EssencePouchTrackingState
 
 	public EssencePouch getPouch(EssencePouches pouch)
 	{
+		if (pouch == null)
+		{
+			return null;
+		}
+
 		switch (pouch)
 		{
 			case SMALL:
@@ -34,13 +39,19 @@ public class EssencePouchTrackingState
 				return this.giantPouch;
 			case COLOSSAL:
 				return this.colossalPouch;
+			default:
+				return null;
 		}
-		return null;
 	}
 
 	public EssencePouch getPouch(EssencePouch pouch)
 	{
 		return this.getPouch(pouch.getPouchType());
+	}
+
+	public EssencePouch getPouch(int itemID)
+	{
+		return this.getPouch(EssencePouches.getPouch(itemID));
 	}
 
 	public void setPouch(EssencePouch pouch)

@@ -98,6 +98,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Named("developerMode")
 	boolean developerMode;
 
+	@Getter
 	private EssencePouchTrackingState trackingState;
 
 	@Getter
@@ -592,6 +593,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.hasRedwoodAbyssalLanternInInventory = false;
 				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
+			removedItems.stream().map(EssencePouches::getPouch).filter(Objects::nonNull).forEach(pouchType -> {
+				if (this.pouches.containsKey(pouchType))
+				{
+					this.pouches.remove(pouchType);
+					log.debug("Player removed {} from their inventory.", pouchType.getName());
+				}
+			});
 			this.previousInventory = currentInventory;
 		}
 		else if (itemContainerChanged.getContainerId() == InventoryID.EQUIPMENT.getId())
@@ -1269,7 +1277,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			this.trackingState = trackingState;
 			log.debug("Loaded tracking state: {}", trackingState);
-			for (EssencePouches pouchType : EssencePouches.values())
+			for (EssencePouches pouchType : this.pouches.keySet())
 			{
 				this.pouches.put(pouchType, trackingState.getPouch(pouchType));
 			}
@@ -1297,7 +1305,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			log.debug("Unable to update the tracking state due to the state being null. Initializing the state.");
 			this.trackingState = new EssencePouchTrackingState();
 			// Initialize the pouches
-			for (EssencePouches pouch : EssencePouches.values())
+			for (EssencePouches pouch : this.pouches.keySet())
 			{
 				this.pouches.put(pouch, this.trackingState.getPouch(pouch));
 			}
