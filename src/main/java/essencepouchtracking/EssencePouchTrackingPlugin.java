@@ -435,6 +435,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 		if (pouch == null)
 		{
 			log.debug("Pouch {} not found in pouches map so can't do {}", pouchAction.getPouchType(), pouchAction.getAction());
+			this.pauseUntilTick = -1;
+			return false;
+		}
+		else if (pouch.isUnknownStored())
+		{
+			log.debug("Pouch {} is unknown so can't do {} to avoid improper state", pouchAction.getPouchType(), pouchAction.getAction());
+			this.pauseUntilTick = -1;
 			return false;
 		}
 
@@ -446,12 +453,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouch.isFilled())
 			{
 				log.debug("{} is already full so can't fill it", pouchAction.getPouchType());
+				this.pauseUntilTick = -1;
 				return false;
 			}
 			// Now check to see if there's even essence in the inventory
 			if (this.essenceInInventory == 0)
 			{
 				log.debug("No essence in the inventory to fill the {}", pouchAction.getPouchType());
+				this.pauseUntilTick = -1;
 				return false;
 			}
 
@@ -469,12 +478,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (pouch.isEmpty())
 			{
 				log.debug("{} is already empty so can't empty it", pouchAction.getPouchType());
+				this.pauseUntilTick = -1;
 				return false;
 			}
 			// Now check to see if there's even space in the inventory
 			if (this.inventoryFreeSlots == 0)
 			{
 				log.debug("No space in the inventory to empty the {}", pouchAction.getPouchType());
+				this.pauseUntilTick = -1;
 				return false;
 			}
 			// We meet all the conditions required to empty the pouch into the inventory (we have space to empty some if not all, and the pouch isn't empty)
