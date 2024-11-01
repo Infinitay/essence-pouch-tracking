@@ -903,6 +903,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					log.debug("{} has an unknown stored essence count. Setting it to {} stored essence.", pouch.getPouchType().getName(), numberOfEssence);
 					pouch.setStoredEssence(numberOfEssence);
+					this.updateTrackingState();
 					return;
 				}
 
