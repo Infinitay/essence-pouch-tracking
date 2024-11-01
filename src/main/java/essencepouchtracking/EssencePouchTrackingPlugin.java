@@ -12,6 +12,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -567,6 +568,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 			log.debug("Added Items: " + addedItems);
 			log.debug("Removed Items: " + removedItems);
 
+			// Set containing essence pouches that either were degraded or repaired
+			Set<EssencePouches> modifiedEssencePouch = new HashSet<>(EssencePouches.values().length);
 			// Now that we've handling inventory state changes, we can handle the pouches
 			// First check if we have any pouches in the inventory in case this is the user's first run or some other issue
 			for (int itemId : addedItems)
@@ -584,10 +587,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 					EssencePouch currentPouch = this.pouches.get(pouch.getPouchType());
 					if (currentPouch != null && currentPouch.getPouchType().getDegradedItemID() == itemId)
 					{
+						modifiedEssencePouch.add(currentPouch.getPouchType());
 						currentPouch.setDegraded(true);
-						log.debug("{} has degraded", currentPouch.getPouchType().getName());
+						log.debug("{} has degraded and was added to the inventory", currentPouch.getPouchType().getName());
 						// Re-run the action to update the pouch's state
 						this.handPouchActionsPostDegrade(currentPouch);
+					}
+					else if (currentPouch != null && currentPouch.getPouchType().getItemID() == itemId)
+					{
+						modifiedEssencePouch.add(currentPouch.getPouchType());
+						log.debug("{} has been repaired and was added to the inventory", currentPouch.getPouchType().getName());
 					}
 				}
 
@@ -604,7 +613,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.hasRedwoodAbyssalLanternInInventory = false;
 				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
-			removedItems.stream().map(EssencePouches::getPouch).filter(Objects::nonNull).forEach(pouchType -> {
+			removedItems.stream().map(EssencePouches::getPouch).filter(Objects::nonNull).filter(Predicate.not(modifiedEssencePouch::contains)).forEach(pouchType -> {
 				if (this.pouches.containsKey(pouchType))
 				{
 					this.pouches.remove(pouchType);
@@ -876,17 +885,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			int numberOfEssence = EssencePouches.checkEssenceStringToInt(message);
 			EssencePouch pouch = this.checkedPouchQueue.poll();
-			for (PouchActionTask taskAction : this.pouchTaskQueue)
-			{
-				if (taskAction.getPouchType().equals(pouch.getPouchType()))
-				{
-					if (taskAction.wasSuccessful())
-					{
-						log.debug("Pouch action for {} was successful therefore ignoring pouch check result.", pouch.getPouchType());
-						return;
-					}
-				}
-			}
 			if (pouch != null)
 			{
 				for (PouchActionTask taskAction : this.pouchTaskQueue)
@@ -945,7 +943,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			return;
 		}
 
-		if (receivedChatMessage.getType().equals(ChatMessageType.PUBLICCHAT) && receivedChatMessage.getName().equalsIgnoreCase(this.client.getLocalPlayer().getName()))
+		if (receivedChatMessage.getType().equals(ChatMessageType.FRIENDSCHAT) && receivedChatMessage.getName().equalsIgnoreCase(this.client.getLocalPlayer().getName()))
 		{
 			switch (message)
 			{
