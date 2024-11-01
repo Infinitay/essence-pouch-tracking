@@ -53,6 +53,10 @@ import net.runelite.api.widgets.ComponentID;
 import net.runelite.api.widgets.InterfaceID;
 import net.runelite.api.widgets.Widget;
 import net.runelite.client.callback.ClientThread;
+import net.runelite.client.chat.ChatColorType;
+import net.runelite.client.chat.ChatMessageBuilder;
+import net.runelite.client.chat.ChatMessageManager;
+import net.runelite.client.chat.QueuedMessage;
 import net.runelite.client.config.ConfigManager;
 import net.runelite.client.eventbus.Subscribe;
 import net.runelite.client.events.ConfigChanged;
@@ -85,6 +89,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 
 	@Inject
 	private ItemManager itemManager;
+
+	@Inject
+	private ChatMessageManager chatMessageManager;
 
 	@Inject
 	private Gson gson;
@@ -159,6 +166,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean hasRedwoodAbyssalLanternEquipped;
 	private boolean hasRedwoodAbyssalLanternInInventory;
 	private boolean isLanternDecayPreventionAvailable;
+
+	private boolean didSendCheckNotification;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -579,6 +588,15 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					this.pouches.put(pouch.getPouchType(), pouch);
 					this.updatePouchFromState(pouch);
+					// Now lets check to see if the pouch has any unknown state, and if so, then send a message instructing the user
+					EssencePouch currentPouch = this.pouches.get(pouch.getPouchType());
+					if (!didSendCheckNotification && (currentPouch.isUnknownStored() || currentPouch.isUnknownDecay()))
+					{
+						String message = new ChatMessageBuilder().append(ChatColorType.HIGHLIGHT).append("Please check your essence pouch(es) and attempt to repair them to initialize their state(s).").build();
+						QueuedMessage queuedMessage = QueuedMessage.builder().type(ChatMessageType.CONSOLE).runeLiteFormattedMessage(message).build();
+						this.chatMessageManager.queue(queuedMessage);
+						this.didSendCheckNotification = true;
+					}
 				}
 
 				// Check to see if pouch has degraded
@@ -1377,6 +1395,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.wasLastActionCraftRune = false;
 		this.lastCraftRuneTick = -1;
 		this.lastRCXP = -1;
+		this.didSendCheckNotification = false;
 	}
 
 	private void repairAllPouches()
