@@ -900,6 +900,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 						}
 					}
 				}
+
+				if (pouch.isUnknownStored())
+				{
+					log.debug("{} has an unknown stored essence count. Setting it to {} stored essence.", pouch.getPouchType().getName(), numberOfEssence);
+					pouch.setStoredEssence(numberOfEssence);
+					return;
+				}
+
 				int previousStoredEssence = pouch.getStoredEssence();
 				int difference = numberOfEssence - previousStoredEssence;
 
@@ -923,10 +931,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 					pouch.setStoredEssence(numberOfEssence);
 				}
 				this.updateTrackingState();
+				return;
 			}
 			else
 			{
 				log.debug("Received a check pouch count message, but there was no more pouches in the queue.");
+				return;
 			}
 		}
 
