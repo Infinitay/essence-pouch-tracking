@@ -38,6 +38,30 @@ public class EssencePouch
 	}
 
 	/**
+	 * Sets the stored essence in the pouch directly without modifying `remainingEssenceBeforeDecay`
+	 *
+	 * @param storedEssence amount of essence to be stored
+	 */
+	public void setStoredEssence(int storedEssence)
+	{
+		this.storedEssence = storedEssence;
+		this.setUnknownStored(false);
+		log.debug("Setting {} stored essence to {} (previously {})", this.pouchType.getName(), storedEssence, this.storedEssence);
+	}
+
+	/**
+	 * Sets the remaining essence before decay
+	 *
+	 * @param remainingEssenceBeforeDecay amount of essence available to be stored until decay
+	 */
+	public void setRemainingEssenceBeforeDecay(int remainingEssenceBeforeDecay)
+	{
+		this.remainingEssenceBeforeDecay = remainingEssenceBeforeDecay;
+		this.setUnknownDecay(false);
+		log.debug("Setting {} remaining essence before decay to {} (previously {})", this.pouchType.getName(), remainingEssenceBeforeDecay, this.remainingEssenceBeforeDecay);
+	}
+
+	/**
 	 * Repairs the pouch by resetting the essence remaining before decay and resets the degradation state
 	 */
 	public void repairPouch()
