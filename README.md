@@ -1,5 +1,8 @@
 # [Essence Pouch Tracking](https://runelite.net/plugin-hub/show/essence-pouch-tracking)
 
+![image](https://img.shields.io/endpoint?url=https://api.runelite.net/pluginhub/shields/installs/plugin/essence-pouch-tracking)
+![image](https://img.shields.io/endpoint?url=https://api.runelite.net/pluginhub/shields/rank/plugin/essence-pouch-tracking)
+
 A RuneLite plugin that tracks both the amount of essence stored in your essence pouches and the amount of essence until decay.
 
 [!Preview](https://github.com/user-attachments/assets/4e704127-92ea-4daf-976c-ae24dc29d8da)
