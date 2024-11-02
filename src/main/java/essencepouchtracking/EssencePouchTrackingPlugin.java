@@ -581,7 +581,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			Set<EssencePouches> modifiedEssencePouch = new HashSet<>(EssencePouches.values().length);
 			// Now that we've handling inventory state changes, we can handle the pouches
 			// First check if we have any pouches in the inventory in case this is the user's first run or some other issue
-			for (int itemId : addedItems)
+			for (int itemId : addedItems.elementSet())
 			{
 				EssencePouch pouch = EssencePouches.createPouch(itemId);
 				if (pouch != null && !this.pouches.containsKey(pouch.getPouchType()))
@@ -626,12 +626,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 				}
 			}
 
-			if (removedItems.contains(ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS))
+			if (removedItems.elementSet().contains(ItemID.ABYSSAL_LANTERN_REDWOOD_LOGS))
 			{
 				this.hasRedwoodAbyssalLanternInInventory = false;
 				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
-			removedItems.stream().map(EssencePouches::getPouch).filter(Objects::nonNull).filter(Predicate.not(modifiedEssencePouch::contains)).forEach(pouchType -> {
+			removedItems.elementSet().stream().map(EssencePouches::getPouch).filter(Objects::nonNull).filter(Predicate.not(modifiedEssencePouch::contains)).forEach(pouchType -> {
 				if (this.pouches.containsKey(pouchType))
 				{
 					this.pouches.remove(pouchType);
