@@ -1,4 +1,4 @@
-# Essence Pouch Tracking
+# [Essence Pouch Tracking](https://runelite.net/plugin-hub/show/essence-pouch-tracking)
 
 A RuneLite plugin that tracks both the amount of essence stored in your essence pouches and the amount of essence until decay.
 
@@ -10,21 +10,20 @@ A RuneLite plugin that tracks both the amount of essence stored in your essence 
 - Shows the amount of essence until the decay
 - Tracks repairing pouches via [Dark Mage](https://oldschool.runescape.wiki/w/Dark_Mage_(Abyss)) (Abyss or NPC Contact) or GOTR's [Apprentice Cordelia](https://oldschool.runescape.wiki/w/Apprentice_Cordelia#Raiments_of_the_Eye)
 - Supports [Guardians of the Rift](https://oldschool.runescape.wiki/w/Guardians_of_the_Rift) (GOTR)
+- Supports not decaying pouches when wearing [special equipment](https://oldschool.runescape.wiki/w/Essence_pouch#:~:text=Pouches%20degrade%20on,90%20Firemaking.)
 
 ## How to Use the Plugin
-1. Install the plugin from the RuneLite [Plugin Hub](https://runelite.net/plugin-hub/) by searching "Essence Pouch Tracking"
-    1. _Currently waiting to be released_
+1. [Install the plugin from the RuneLite [Plugin Hub](https://runelite.net/plugin-hub/) by searching for "[Essence Pouch Tracking](https://runelite.net/plugin-hub/show/essence-pouch-tracking)"
 2. Check your essence pouch to initialize the pouch's current essence count
 3. Attempt to repair your essence pouches with any method you prefer to initialize the pouches' remaining decay count
 
+If you have any troubles, try to reset the plugin and re-check and repair your pouches once more. If you still have any problems, please feel free to open an issue on the [GitHub repository](https://github.com/Infinitay/essence-pouch-tracking/issues?q=sort%3Aupdated-desc+is%3Aissue+is%3Aopen) and be as descriptive as possible.
 ## Known Issues
 
  - _Stored count essence **could** be wrong_
    - There were some rare instances in which the stored count **could** be wrong. After hours of testing, I've faced it perhaps once or twice, and one of them was in a 4+ hour session.
  - Different essence types are not tracked separately
    - This is a feature I'm working on supporting in the future (See [#12](https://github.com/Infinitay/essence-pouch-tracking/issues/12))
- - Amount of essence until the decay changing despite 99 RC or [specialized equipment](https://oldschool.runescape.wiki/w/Essence_pouch#:~:text=However%2C%20if%20a,requires%2090%20Firemaking)
-    - This is a feature I'm working on supporting in the future (See [#9](https://github.com/Infinitay/essence-pouch-tracking/issues/9))
 
 ## What's Different?
 
