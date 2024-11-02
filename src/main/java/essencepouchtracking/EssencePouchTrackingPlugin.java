@@ -8,6 +8,7 @@ import com.google.common.collect.Multisets;
 import com.google.common.collect.Queues;
 import com.google.gson.Gson;
 import com.google.inject.Provides;
+import essencepouchtracking.pouch.RepairDialog;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Deque;
@@ -33,7 +34,6 @@ import net.runelite.api.ItemContainer;
 import net.runelite.api.ItemID;
 import net.runelite.api.MenuAction;
 import net.runelite.api.MenuEntry;
-import net.runelite.api.NpcID;
 import net.runelite.api.Skill;
 import net.runelite.api.VarClientStr;
 import net.runelite.api.events.AccountHashChanged;
@@ -396,14 +396,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			Widget clickedWidget = menuOptionClicked.getWidget();
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
-			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals(DIALOG_CONTINUE_TEXT) && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
+			if (clickedWidget != null && dialogPlayerTextWidget != null && clickedWidget.getText().equals(RepairDialog.DIALOG_CONTINUE_TEXT) && dialogPlayerTextWidget.getText().equals(RepairDialog.REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
 			}
 			if (this.didUnlockGOTRRepair)
 			{
 				Widget dialogNPCTextWidget = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
-				if (clickedWidget != null && dialogNPCTextWidget != null && clickedWidget.getText().equals(DIALOG_CONTINUE_TEXT) && dialogNPCTextWidget.getText().equals(REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
+				if (clickedWidget != null && dialogNPCTextWidget != null && clickedWidget.getText().equals(RepairDialog.DIALOG_CONTINUE_TEXT) && dialogNPCTextWidget.getText().equals(RepairDialog.REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
 				{
 					this.repairAllPouches();
 				}
@@ -700,14 +700,13 @@ public class EssencePouchTrackingPlugin extends Plugin
 			Widget dialogText = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
 			if (dialogNPCHeadModel != null && dialogText != null)
 			{
-				if (dialogNPCHeadModel.getModelId() == NpcID.DARK_MAGE && (POST_REPAIR_DARK_MAGE_DIALOG_TEXT.contains(dialogText.getText())
-					|| (this.didUnlockGOTRRepair && dialogText.getText().equals(POST_REPAIR_DARK_MAGE_CORDELIA_DIALOG_TEXT))))
+				if (dialogNPCHeadModel.getModelId() == RepairDialog.DARK_MAGE_WIDGET_MODEL_ID && (RepairDialog.REPAIRED_DARK_MAGE_DIALOG_TEXTS.contains(dialogText.getText())
+					|| (this.didUnlockGOTRRepair && dialogText.getText().equals(RepairDialog.REPAIR_CONFIRMATION_CORDELIA_DARK_MAGE_DIALOG_TEXT))))
 				{
 					this.repairAllPouches();
 				}
 				// Cordelia's NPC ID is 12180 but her model ID when talking to her is 6717
-				if (this.didUnlockGOTRRepair && dialogNPCHeadModel.getModelId() == APPRENTICE_CORDELIA_WIDGET_MODEL_ID && (dialogText.getText().equals(POST_REPAIR_CORDELIA_DIALOG_TEXT)
-					|| dialogText.getText().equals(ALREADY_REPAIRED_CORDELIA_DIALOG_TEXT)))
+				if (this.didUnlockGOTRRepair && dialogNPCHeadModel.getModelId() == RepairDialog.APPRENTICE_CORDELIA_WIDGET_MODEL_ID && RepairDialog.REPAIRED_CORDELIA_DIALOG_TEXTS.contains(dialogText.getText()))
 				{
 					this.repairAllPouches();
 				}
@@ -719,7 +718,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (dialogOptionsWidget != null && dialogOptionsWidget.getChildren() != null)
 			{
 				List<String> options = Arrays.stream(dialogOptionsWidget.getChildren()).filter(Objects::nonNull).map(Widget::getText).collect(Collectors.toList());
-				if (options.equals(ALREADY_REPAIRED_DIALOG_OPTIONS) || options.equals(POST_REPAIR_DIALOG_OPTIONS))
+				if (RepairDialog.POST_REPAIR_DIALOG_OPTIONS.contains(options))
 				{
 					this.repairAllPouches();
 				}
@@ -1096,7 +1095,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		if (this.isRepairDialogue && postFiredScript.getScriptId() == 2153)
 		{
 			Widget dialogPlayerTextWidget = this.client.getWidget(ComponentID.DIALOG_PLAYER_TEXT);
-			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals(REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
+			if (dialogPlayerTextWidget != null && dialogPlayerTextWidget.getText().equals(RepairDialog.REQUEST_REPAIR_PLAYER_DIALOG_TEXT))
 			{
 				this.repairAllPouches();
 				return;
@@ -1104,7 +1103,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (this.didUnlockGOTRRepair)
 			{
 				Widget dialogNpcTextWidget = this.client.getWidget(ComponentID.DIALOG_NPC_TEXT);
-				if (dialogNpcTextWidget != null && dialogNpcTextWidget.getText().equals(REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
+				if (dialogNpcTextWidget != null && dialogNpcTextWidget.getText().equals(RepairDialog.REQUEST_REPAIR_CORDELIA_DIALOG_TEXT))
 				{
 					this.repairAllPouches();
 				}
