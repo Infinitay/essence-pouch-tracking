@@ -1,7 +1,6 @@
 package essencepouchtracking;
 
 import com.google.common.collect.HashMultiset;
-import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableSet;
 import com.google.common.collect.Multiset;
 import com.google.common.collect.Multisets;
@@ -129,16 +128,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private int pauseUntilTick;
 	private boolean isRepairDialogue;
 	private boolean didUnlockGOTRRepair;
-	private final List<String> ALREADY_REPAIRED_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Actually, I don't need anything right now.", "", "");
-	private final List<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableList.of("Select an option", "Can I have another Abyssal book?", "Thanks.", "", "");
-	private final Set<String> POST_REPAIR_DARK_MAGE_DIALOG_TEXT = ImmutableSet.of("Fine. A simple transfiguration spell should resolve things<br>for you.", "There, I have repaired your pouches. Now leave me<br>alone. I'm concentrating!", "You don't seem to have any pouches in need of repair.<br>Leave me alone!");
-	private final String REQUEST_REPAIR_PLAYER_DIALOG_TEXT = "Can you repair my pouches?";
-	private final String DIALOG_CONTINUE_TEXT = "Click here to continue";
-	private final String ALREADY_REPAIRED_CORDELIA_DIALOG_TEXT = "You don't seem to have any pouches in need of repair.";
-	private final String REQUEST_REPAIR_CORDELIA_DIALOG_TEXT = "I got someone here in need of a pouch repair.";
-	private final String POST_REPAIR_DARK_MAGE_CORDELIA_DIALOG_TEXT = "OK...It's done.";
-	private final String POST_REPAIR_CORDELIA_DIALOG_TEXT = "Your pouches have been repaired.";
-	private final int APPRENTICE_CORDELIA_WIDGET_MODEL_ID = 6717;
 
 	// Last action of the tick
 	@Getter
