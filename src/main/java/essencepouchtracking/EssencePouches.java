@@ -1,11 +1,13 @@
 package essencepouchtracking;
 
 import com.google.common.collect.ImmutableMap;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import net.runelite.api.ItemID;
+
+import java.util.Map;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Getter
 @AllArgsConstructor
@@ -68,16 +70,28 @@ public enum EssencePouches
 		.put("forty", 40)
 		.build();
 
-	public static EssencePouches getPouch(int itemID)
+	private static final Map<Integer, EssencePouches> ESSENCE_POUCHES_MAP;
+	private static final Map<Integer, EssencePouches> DEGRADED_ESSENCE_POUCHES_MAP;
+
+	static
 	{
+		ImmutableMap.Builder<Integer, EssencePouches> pouchesBuilder = new ImmutableMap.Builder<>();
+		ImmutableMap.Builder<Integer, EssencePouches> degradedPouchesBuilder = new ImmutableMap.Builder<>();
 		for (EssencePouches pouch : values())
 		{
-			if (pouch.getItemID() == itemID || pouch.getDegradedItemID() == itemID)
+			pouchesBuilder.put(pouch.getItemID(), pouch);
+			if (pouch.degradedItemID != -1)
 			{
-				return pouch;
+				degradedPouchesBuilder.put(pouch.getDegradedItemID(), pouch);
 			}
 		}
-		return null;
+		ESSENCE_POUCHES_MAP = pouchesBuilder.build();
+		DEGRADED_ESSENCE_POUCHES_MAP = degradedPouchesBuilder.build();
+	}
+
+	public static EssencePouches getPouch(int itemID)
+	{
+		return ESSENCE_POUCHES_MAP.containsKey(itemID) ? ESSENCE_POUCHES_MAP.get(itemID) : DEGRADED_ESSENCE_POUCHES_MAP.get(itemID);
 	}
 
 	public int getMaxEssenceBeforeDecay()
@@ -87,32 +101,29 @@ public enum EssencePouches
 
 	public static boolean isPouchDegraded(int itemID)
 	{
-		for (EssencePouches pouch : values())
-		{
-			if (pouch.getDegradedItemID() == itemID)
-			{
-				return true;
-			}
-		}
-		return false;
+		return DEGRADED_ESSENCE_POUCHES_MAP.containsKey(itemID);
 	}
 
 	public static EssencePouch createPouch(int itemID)
 	{
 		EssencePouch essencePouch = null;
-		for (EssencePouches pouch : values())
+		EssencePouches pouchType = getPouch(itemID);
+		if (pouchType == null)
 		{
-			if (pouch.getItemID() == itemID)
-			{
-				essencePouch = new EssencePouch(pouch);
-			}
-			else if (pouch.getDegradedItemID() == itemID)
-			{
-				essencePouch = new EssencePouch(pouch);
-				essencePouch.setDegraded(true);
-				essencePouch.setRemainingEssenceBeforeDecay(Integer.MIN_VALUE);
-			}
+			return null;
 		}
+
+		if (pouchType.degradedItemID != itemID)
+		{
+			essencePouch = new EssencePouch(pouchType);
+		}
+		else
+		{
+			essencePouch = new EssencePouch(pouchType);
+			essencePouch.setDegraded(true);
+			essencePouch.setRemainingEssenceBeforeDecay(Integer.MIN_VALUE);
+		}
+
 		return essencePouch;
 	}
 
