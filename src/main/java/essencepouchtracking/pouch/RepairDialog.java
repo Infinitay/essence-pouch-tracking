@@ -95,12 +95,12 @@ public class RepairDialog
 	/**
 	 * Set of all dialog options by the Dark Mage that indicate the player has or had already repaired their pouches
 	 */
-	public static final Set<String> POST_REPAIR_DIALOG_OPTIONS = ImmutableSet.<String>builder()
-		.addAll(Regular.ALREADY_REPAIRED_DARK_MAGE_DIALOG_OPTIONS)
-		.addAll(Colossal.ALREADY_REPAIRED_DARK_MAGE_DIALOG_OPTIONS)
-		.addAll(Regular.POST_REPAIR_DIALOG_OPTIONS)
-		.addAll(Colossal.POST_REPAIR_DIALOG_OPTIONS)
-		.build();
+	public static final Set<List<String>> POST_REPAIR_DIALOG_OPTIONS = ImmutableSet.of(
+		Regular.ALREADY_REPAIRED_DARK_MAGE_DIALOG_OPTIONS,
+		Colossal.ALREADY_REPAIRED_DARK_MAGE_DIALOG_OPTIONS,
+		Regular.POST_REPAIR_DIALOG_OPTIONS,
+		Colossal.POST_REPAIR_DIALOG_OPTIONS
+	);
 
 	/**
 	 * The dialog text by the Dark Mage that indicates the player has repaired their pouches
