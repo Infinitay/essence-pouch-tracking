@@ -27,7 +27,7 @@ dependencies {
 }
 
 group = 'essencepouchtracking'
-version = '1.5.6'
+version = '1.5.7'
 
 tasks.withType(JavaCompile).configureEach {
     options.encoding = 'UTF-8'
