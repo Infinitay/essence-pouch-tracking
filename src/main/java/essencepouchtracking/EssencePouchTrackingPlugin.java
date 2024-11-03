@@ -67,7 +67,7 @@ import net.runelite.client.ui.overlay.OverlayManager;
 
 @Slf4j
 @PluginDescriptor(
-	name = "Essence Pouch Tracking"
+	name = "Essence Pouch Tracker"
 )
 public class EssencePouchTrackingPlugin extends Plugin
 {
