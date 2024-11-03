@@ -5,7 +5,6 @@ import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.awt.Point;
 import java.awt.Rectangle;
-import java.util.Map;
 import javax.inject.Inject;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.widgets.ComponentID;
@@ -31,14 +30,13 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		Map<EssencePouches, EssencePouch> pouches = this.plugin.getPouches();
-
-		if (pouches.isEmpty() || !(this.config.showStoredEssence() || this.config.showDecay()))
+		EssencePouchTrackingState trackingState = this.plugin.getTrackingState();
+		if (trackingState == null || !(this.config.showStoredEssence() || this.config.showDecay()))
 		{
 			return;
 		}
 
-		EssencePouch pouch = this.plugin.getTrackingState().getPouch(itemId);
+		EssencePouch pouch = trackingState.getPouch(itemId);
 		if (pouch != null)
 		{
 			if (this.config.showStoredEssence())
