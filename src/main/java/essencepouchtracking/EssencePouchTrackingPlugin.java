@@ -252,13 +252,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOptionClicked)
 	{
-		log.debug("{}", menuOptionClicked);
-		log.debug("[Inventory Data] MenuOptionClicked MenuOption | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
-			this.previousEssenceInInventory, this.essenceInInventory,
-			this.previousInventoryFreeSlots, this.inventoryFreeSlots,
-			this.previousInventoryUsedSlots, this.inventoryUsedSlots
-		);
-		log.debug("{}", this.pouchTaskQueue);
 		this.wasLastActionCraftRune = false;
 		//TODO All essence is removed from a pouch when it is dropped
 
