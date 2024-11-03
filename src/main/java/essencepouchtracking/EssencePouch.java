@@ -194,4 +194,16 @@ public class EssencePouch
 		this.storedEssence = 0;
 		this.setUnknownStored(false);
 	}
+
+	public void resetDecay()
+	{
+		this.remainingEssenceBeforeDecay = this.pouchType.getMaxEssenceBeforeDecay();
+		this.setUnknownDecay(false);
+	}
+
+	public void reset()
+	{
+		this.resetStored();
+		this.resetDecay();
+	}
 }

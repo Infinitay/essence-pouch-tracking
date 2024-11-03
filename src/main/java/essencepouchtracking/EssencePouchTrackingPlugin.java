@@ -568,6 +568,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				EssencePouch pouch = EssencePouches.createPouch(itemId);
 				if (pouch != null && !this.pouches.containsKey(pouch.getPouchType()))
 				{
+					log.debug("Player added a {} to their inventory", pouch.getPouchType().getName());
 					this.pouches.put(pouch.getPouchType(), pouch);
 					this.updatePouchFromState(pouch);
 					// Now lets check to see if the pouch has any unknown state, and if so, then send a message instructing the user
@@ -579,13 +580,26 @@ public class EssencePouchTrackingPlugin extends Plugin
 						this.chatMessageManager.queue(queuedMessage);
 						this.didSendCheckNotification = true;
 					}
+
+					// Check to see if the pouch was upgraded or downgraded (Regular <-> Colossal) and reset respectively
+					// If the pouch was upgraded, then the player should have the new pouch in their inventory
+					if (EssencePouches.isARegularEssencePouch(itemId))
+					{
+						// User added a regular essence pouch into their inventory -> downgraded from colossal -> reset colossal pouch
+						this.downgradedToRegularPouch();
+					}
+					else if (EssencePouches.isAColossalEssencePouch(itemId))
+					{
+						// User added a colossal essence pouch into their inventory -> upgraded from regular -> reset all regular pouches
+						this.upgradedToColossalPouch();
+					}
 				}
 
 				// Check to see if pouch has degraded
 				if (pouch != null && this.pouches.containsKey(pouch.getPouchType()))
 				{
 					EssencePouch currentPouch = this.pouches.get(pouch.getPouchType());
-					if (currentPouch != null && currentPouch.getPouchType().getDegradedItemID() == itemId)
+					if (currentPouch != null && currentPouch.getPouchType().getDegradedItemID() == itemId && removedItems.contains(currentPouch.getPouchType().getItemID()))
 					{
 						modifiedEssencePouch.add(currentPouch.getPouchType());
 						currentPouch.setDegraded(true);
@@ -593,7 +607,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 						// Re-run the action to update the pouch's state
 						this.handPouchActionsPostDegrade(currentPouch);
 					}
-					else if (currentPouch != null && currentPouch.getPouchType().getItemID() == itemId)
+					else if (currentPouch != null && currentPouch.getPouchType().getItemID() == itemId && removedItems.contains(currentPouch.getPouchType().getDegradedItemID()))
 					{
 						modifiedEssencePouch.add(currentPouch.getPouchType());
 						log.debug("{} has been repaired and was added to the inventory", currentPouch.getPouchType().getName());
@@ -1420,5 +1434,56 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			return false;
 		}
+	}
+
+	// User added a colossal essence pouch into their inventory -> upgraded from regular -> reset all regular pouches
+	private void upgradedToColossalPouch()
+	{
+		// First see if the pouch exists in our inventory and reset the state. This should technically never be non-null
+		// Since an upgrade to colossal => no more regular pouches in the inventory. But just in case
+		for (EssencePouches pouchType : EssencePouches.REGULAR_ESSENCE_POUCHES)
+		{
+			EssencePouch pouchFromInventory = this.pouches.get(pouchType);
+			if (pouchFromInventory != null)
+			{
+				pouchFromInventory.reset();
+				this.trackingState.setPouch(pouchFromInventory);
+			}
+			else
+			{
+				EssencePouch pouchFromState = this.trackingState.getPouch(pouchType);
+				if (pouchFromState != null)
+				{
+					pouchFromState.reset();
+					this.trackingState.setPouch(pouchFromState);
+				}
+			}
+		}
+		this.saveTrackingState();
+	}
+
+	// User added a regular essence pouch into their inventory -> downgraded from colossal -> reset colossal pouch
+	private void downgradedToRegularPouch()
+	{
+		// First see if the pouch exists in our inventory and reset the state. This should technically never be non-null
+		// Since a downgrade to regular => no more colossal pouch in the inventory. But just in case
+		EssencePouch pouchFromInventory = this.pouches.get(EssencePouches.COLOSSAL);
+		if (pouchFromInventory != null)
+		{
+			pouchFromInventory.reset();
+			this.trackingState.setPouch(pouchFromInventory);
+			this.saveTrackingState();
+		}
+		else
+		{
+			EssencePouch pouchFromState = this.trackingState.getPouch(EssencePouches.COLOSSAL);
+			if (pouchFromState != null)
+			{
+				pouchFromState.reset();
+				this.trackingState.setPouch(pouchFromState);
+				this.saveTrackingState();
+			}
+		}
+		this.saveTrackingState();
 	}
 }

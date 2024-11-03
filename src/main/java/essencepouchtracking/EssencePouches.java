@@ -1,13 +1,14 @@
 package essencepouchtracking;
 
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import java.util.Map;
+import java.util.Set;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import lombok.AllArgsConstructor;
 import lombok.Getter;
 import net.runelite.api.ItemID;
-
-import java.util.Map;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 @Getter
 @AllArgsConstructor
@@ -89,6 +90,8 @@ public enum EssencePouches
 		DEGRADED_ESSENCE_POUCHES_MAP = degradedPouchesBuilder.build();
 	}
 
+	public static final Set<EssencePouches> REGULAR_ESSENCE_POUCHES = ImmutableSet.of(SMALL, MEDIUM, LARGE, GIANT);
+
 	public static EssencePouches getPouch(int itemID)
 	{
 		return ESSENCE_POUCHES_MAP.containsKey(itemID) ? ESSENCE_POUCHES_MAP.get(itemID) : DEGRADED_ESSENCE_POUCHES_MAP.get(itemID);
@@ -145,5 +148,27 @@ public enum EssencePouches
 			return number != null ? number : -1;
 		}
 		return -1;
+	}
+
+	/**
+	 * Checks if the itemID is a regular essence pouch type
+	 *
+	 * @param itemID The itemID to check
+	 * @return true if the itemID is a regular essence pouch type
+	 */
+	public static boolean isARegularEssencePouch(int itemID)
+	{
+		return !isAColossalEssencePouch(itemID);
+	}
+
+	/**
+	 * Checks if the itemID is a colossal essence pouch type
+	 *
+	 * @param itemID The itemID to check
+	 * @return true if the itemID is a colossal essence pouch type
+	 */
+	public static boolean isAColossalEssencePouch(int itemID)
+	{
+		return itemID == COLOSSAL.getItemID() || itemID == COLOSSAL.getDegradedItemID();
 	}
 }
