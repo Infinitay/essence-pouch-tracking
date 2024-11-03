@@ -31,7 +31,7 @@ public class EssencePouchTrackingOverlay extends WidgetItemOverlay
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
 		EssencePouchTrackingState trackingState = this.plugin.getTrackingState();
-		if (trackingState == null || !(this.config.showStoredEssence() || this.config.showDecay()))
+		if (trackingState == null || !this.config.showStoredEssence() || !this.config.showDecay())
 		{
 			return;
 		}

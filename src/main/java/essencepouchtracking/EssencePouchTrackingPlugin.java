@@ -178,7 +178,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.clientThread.invokeLater(() -> {
 			if (this.client.getGameState().equals(GameState.LOGGED_IN))
 			{
-				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1 ? true : false;
+				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1;
 			}
 		});
 	}
@@ -780,7 +780,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		else if (varbitChanged.getVarbitId() == 14672)
 		{
 			// GOTR Pouch Repair Ability
-			this.didUnlockGOTRRepair = varbitChanged.getValue() == 1 ? true : false;
+			this.didUnlockGOTRRepair = varbitChanged.getValue() == 1;
 		}
 	}
 

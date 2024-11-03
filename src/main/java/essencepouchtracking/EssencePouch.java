@@ -44,9 +44,9 @@ public class EssencePouch
 	 */
 	public void setStoredEssence(int storedEssence)
 	{
+		log.debug("Setting {} stored essence to {} (previously {})", this.pouchType.getName(), storedEssence, this.storedEssence);
 		this.storedEssence = storedEssence;
 		this.setUnknownStored(false);
-		log.debug("Setting {} stored essence to {} (previously {})", this.pouchType.getName(), storedEssence, this.storedEssence);
 	}
 
 	/**
@@ -56,9 +56,9 @@ public class EssencePouch
 	 */
 	public void setRemainingEssenceBeforeDecay(int remainingEssenceBeforeDecay)
 	{
+		log.debug("Setting {} remaining essence before decay to {} (previously {})", this.pouchType.getName(), remainingEssenceBeforeDecay, this.remainingEssenceBeforeDecay);
 		this.remainingEssenceBeforeDecay = remainingEssenceBeforeDecay;
 		this.setUnknownDecay(false);
-		log.debug("Setting {} remaining essence before decay to {} (previously {})", this.pouchType.getName(), remainingEssenceBeforeDecay, this.remainingEssenceBeforeDecay);
 	}
 
 	/**
@@ -121,11 +121,13 @@ public class EssencePouch
 			this.remainingEssenceBeforeDecay -= essenceToStore;
 		}
 		this.setUnknownStored(false);
-		log.debug("Given {} essence, storing {}/{} essence into the {}. You can store approximately {} more essence until decay.",
+		log.debug("Given {} essence, storing {}/{} essence into the {}. The pouch now contains {}/{} essence and can store approximately {} more essence until decay.",
 			totalEssenceInInventory,
 			essenceToStore,
 			this.pouchType.getMaxCapacity(),
 			this.pouchType.getName(),
+			this.storedEssence,
+			this.pouchType.getMaxCapacity(),
 			this.remainingEssenceBeforeDecay
 		);
 		// Left-over essence that exceeded maximum capacity
