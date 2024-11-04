@@ -175,12 +175,14 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			this.overlayManager.add(debugOverlay);
 		}
-		this.clientThread.invokeLater(() -> {
-			if (this.client.getGameState().equals(GameState.LOGGED_IN))
+		this.clientThread.invokeLater(() ->
 			{
-				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1;
+				if (this.client.getGameState().equals(GameState.LOGGED_IN))
+				{
+					this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1;
+				}
 			}
-		});
+		);
 	}
 
 	@Override
@@ -212,7 +214,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// First reset plugin state followed by tracking state in order to initialize all pouches back into this.pouches
 		this.resetPluginState();
 		this.resetTrackingState();
-		this.clientThread.invokeLater(() -> {
+		this.clientThread.invokeLater(() ->
+		{
 			if (this.client.getGameState().equals(GameState.LOGGED_IN))
 			{
 				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1 ? true : false;
@@ -274,7 +277,6 @@ public class EssencePouchTrackingPlugin extends Plugin
 				{
 					return;
 				}
-				log.debug("{} {} x{}", menuOption, itemID, quantity);
 				// Should only be used when Withdrawing
 				int totalItemAmount;
 				if (menuOption.equals("withdraw"))
@@ -287,9 +289,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 					// The player is depositing from the inventory so fetch the total amount of the item inside the inventory
 					totalItemAmount = this.essenceInInventory;
 				}
+
 				int quantityNumeric;
 				try
 				{
+					// User withdrew a specific (1/5/10/x) quantity of essence
 					quantityNumeric = Integer.parseInt(quantity);
 					onBankEssenceTaskCreated(new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric));
 				}
@@ -321,7 +325,16 @@ public class EssencePouchTrackingPlugin extends Plugin
 						this.bankEssenceTask = new BankEssenceTask(menuOption, getItemName(itemID), itemID, quantityNumeric);
 					}
 				}
+				log.debug("Player attempted to {} {} x{} ({}) | Total Available in {}: {}",
+					menuOption,
+					this.getItemName(itemID),
+					quantityNumeric,
+					quantity,
+					menuOption.equals("withdraw") ? "Bank" : "Inventory",
+					totalItemAmount
+				);
 			}
+
 			EssencePouches pouchType = EssencePouches.getPouch(menuOptionClicked.getItemId());
 			if (pouchType != null)
 			{
@@ -498,16 +511,18 @@ public class EssencePouchTrackingPlugin extends Plugin
 	public void onBankEssenceTaskCreated(BankEssenceTask createdBankEssenceTask)
 	{
 		this.pauseUntilTick = this.client.getTickCount() + 1;
-		log.debug("[Inventory Data] Before | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
+		log.debug("[Inventory Data] Before onBankEssenceTaskCreated | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 		// Update the inventory manually in case of tick race conditions when banking
 		if (createdBankEssenceTask.getAction().equals(BankEssenceTask.BankEssenceAction.DEPOSIT))
 		{
 			// Depositing the essence from the players inventory into the bank
-			// Don't worry about the quantity being invalid because this was calculated in onMenuOptionClicked
+			// Remember to check the quantity because the quantity was assigned by the # of the item we have in the inventory
+			int maximumEssenceAvailableToDeposit = Math.min(createdBankEssenceTask.getQuantity(), this.essenceInInventory);
 			this.updatePreviousInventoryDetails();
-			this.essenceInInventory -= createdBankEssenceTask.getQuantity();
-			this.inventoryUsedSlots -= createdBankEssenceTask.getQuantity();
-			this.inventoryFreeSlots += createdBankEssenceTask.getQuantity();
+			this.essenceInInventory -= maximumEssenceAvailableToDeposit;
+			this.inventoryUsedSlots -= maximumEssenceAvailableToDeposit;
+			this.inventoryFreeSlots += maximumEssenceAvailableToDeposit;
+			log.debug("Deposited {} essence into the bank", maximumEssenceAvailableToDeposit);
 		}
 		else
 		{
@@ -518,8 +533,9 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.essenceInInventory += maximumEssenceAvailableToWithdraw;
 			this.inventoryUsedSlots += maximumEssenceAvailableToWithdraw;
 			this.inventoryFreeSlots -= maximumEssenceAvailableToWithdraw;
+			log.debug("Withdrew {} essence from the bank", maximumEssenceAvailableToWithdraw);
 		}
-		log.debug("[Inventory Data] After | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
+		log.debug("[Inventory Data] After onBankEssenceTaskCreated | Essence in inventory: {}, Free slots: {}, Used slots: {}", this.essenceInInventory, this.inventoryFreeSlots, this.inventoryUsedSlots);
 	}
 
 	@Subscribe
@@ -627,7 +643,8 @@ public class EssencePouchTrackingPlugin extends Plugin
 				this.hasRedwoodAbyssalLanternInInventory = false;
 				log.debug("Player removed the Redwood Lantern from their inventory.");
 			}
-			removedItems.elementSet().stream().map(EssencePouches::getPouch).filter(Objects::nonNull).filter(Predicate.not(modifiedEssencePouch::contains)).forEach(pouchType -> {
+			removedItems.elementSet().stream().map(EssencePouches::getPouch).filter(Objects::nonNull).filter(Predicate.not(modifiedEssencePouch::contains)).forEach(pouchType ->
+			{
 				if (this.pouches.containsKey(pouchType))
 				{
 					this.pouches.remove(pouchType);
