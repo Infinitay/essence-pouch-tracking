@@ -348,6 +348,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 						this.pouchTaskQueue.add(pouchTask);
 						log.debug("Added {} task to queue: {}", pouchTask, this.pouchTaskQueue);
 					}
+					log.debug("Was the {} task successful? {}", menuOption, wasActionSuccessful);
+					if (!wasActionSuccessful && this.client.getWidget(ComponentID.BANK_CONTAINER) != null)
+					{
+						log.debug("Failed to {} the {} therefore consuming the click", menuOption, pouchType);
+						menuOptionClicked.consume();
+					}
 				}
 				else if (menuOption.equals("check"))
 				{
@@ -416,7 +422,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.previousInventoryFreeSlots, this.inventoryFreeSlots,
 			this.previousInventoryUsedSlots, this.inventoryUsedSlots
 		);
-		log.debug("{}", this.pouchTaskQueue);
+		log.debug("Task Queue: {}", this.pouchTaskQueue);
 		// List of possible tasks:
 		// 1. Fill pouch
 		// What could happen when we try to fill a pouch?
