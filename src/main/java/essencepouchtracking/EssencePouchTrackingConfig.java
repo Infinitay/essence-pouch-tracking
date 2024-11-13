@@ -30,4 +30,16 @@ public interface EssencePouchTrackingConfig extends Config
 	{
 		return true;
 	}
+
+	@ConfigItem(
+		keyName = "showDebugOverlay",
+		name = "Show Debug Overlay",
+		description = "Shows the debug overlay",
+		hidden = true,
+		position = Integer.MAX_VALUE
+	)
+	default boolean showDebugOverlay()
+	{
+		return false;
+	}
 }
