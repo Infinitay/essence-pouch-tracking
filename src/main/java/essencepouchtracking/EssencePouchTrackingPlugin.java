@@ -171,7 +171,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Load the tracking state
 		this.loadTrackingState();
 		this.overlayManager.add(overlay);
-		if (developerMode)
+		if (developerMode && this.config.showDebugOverlay())
 		{
 			this.overlayManager.add(debugOverlay);
 		}
@@ -203,7 +203,17 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 		if (changedConfig.getGroup().equals(EssencePouchTrackingConfig.GROUP))
 		{
-			// log.debug("Config changed: {}", changedConfig);
+			if (changedConfig.getKey().equals("showDebugOverlay") && this.developerMode)
+			{
+				if (this.config.showDebugOverlay())
+				{
+					this.overlayManager.add(debugOverlay);
+				}
+				else
+				{
+					this.overlayManager.remove(debugOverlay);
+				}
+			}
 		}
 	}
 

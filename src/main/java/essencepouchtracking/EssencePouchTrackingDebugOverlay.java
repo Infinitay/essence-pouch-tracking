@@ -56,17 +56,25 @@ public class EssencePouchTrackingDebugOverlay extends OverlayPanel
 		buildLine("Used Slot", String.valueOf(inventoryUsedSlots));
 		buildLine("Prev Essence", String.valueOf(previousEssenceInInventory));
 		buildLine("Essence", String.valueOf(essenceInInventory));
-		buildLine("", "");
-		int q = 1;
-		for (PouchActionTask pouch : pouchTaskQueue)
+
+		if (!pouchTaskQueue.isEmpty())
 		{
-			buildLine(String.valueOf(q++), pouch.toString());
+			buildLine("", "");
+			int q = 1;
+			for (PouchActionTask pouch : pouchTaskQueue)
+			{
+				buildLine(String.valueOf(q++), pouch.toString());
+			}
 		}
-		buildLine("", "");
-		for (Map.Entry<EssencePouches, EssencePouch> entry : pouches.entrySet())
+
+		if (!pouches.isEmpty())
 		{
-			EssencePouch pouch = entry.getValue();
-			buildLine(entry.getKey().toString(), String.valueOf(pouch.getStoredEssence()));
+			buildLine("", "");
+			for (Map.Entry<EssencePouches, EssencePouch> entry : pouches.entrySet())
+			{
+				EssencePouch pouch = entry.getValue();
+				buildLine(entry.getKey().toString(), String.valueOf(pouch.getStoredEssence()));
+			}
 		}
 		return super.render(graphics);
 	}
