@@ -277,7 +277,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		//TODO All essence is removed from a pouch when it is dropped
 
 		// Keep in mind that the current inventory will be updated after this event so if the event is fill now and you have 10 essence in your inventory, the inventory will be updated to 0 after this event
-//		ItemContainer currentInventoryContainer = this.getInventoryContainer();
+		// ItemContainer currentInventoryContainer = this.getInventoryContainer();
 
 		if (menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP) || menuOptionClicked.getMenuAction().equals(MenuAction.CC_OP_LOW_PRIORITY))
 		{
@@ -359,6 +359,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 				if (menuOption.equals("fill") || menuOption.equals("empty"))
 				{
 					PouchActionTask pouchTask = new PouchActionTask(pouchType, menuOption, this.client.getTickCount());
+					if (this.delayTicksUntilLevelsInitialized > 0)
+					{
+						log.debug("The player attempted to {} a pouch. Delaying the task until the player's levels are initialized", pouchTask.getAction());
+						menuOptionClicked.consume();
+						return;
+					}
 					boolean wasActionSuccessful = onPouchActionCreated(new PouchActionCreated(pouchTask));
 					if (wasActionSuccessful || this.lastCraftRuneTick != -1)
 					{
