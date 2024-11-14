@@ -14,8 +14,10 @@ public class EssencePouch
 	private boolean shouldDegrade;
 	private boolean unknownStored;
 	private boolean unknownDecay;
+	private int maxCapacity;
+	private int maxDegradedCapacity;
 
-	public EssencePouch(EssencePouches pouchType, int storedEssence, int remainingEssenceBeforeDecay, boolean isDegraded, boolean shouldDegrade, boolean unknownState, boolean unknownDecay)
+	public EssencePouch(EssencePouches pouchType, int storedEssence, int remainingEssenceBeforeDecay, boolean isDegraded, boolean shouldDegrade, boolean unknownState, boolean unknownDecay, int runecraftingLevel)
 	{
 		this.pouchType = pouchType;
 		this.storedEssence = storedEssence;
@@ -24,17 +26,24 @@ public class EssencePouch
 		this.shouldDegrade = pouchType.equals(EssencePouches.SMALL) ? false : shouldDegrade;
 		this.unknownStored = unknownState;
 		this.unknownDecay = unknownDecay;
+		this.updateMaxCapacity(runecraftingLevel);
+		this.updateMaxDegradedCapacity(runecraftingLevel);
 		log.debug("Created new Essence Pouch: {}", this);
 	}
 
-	public EssencePouch(EssencePouches pouchType, int storedEssence, boolean unknownState, boolean unknownDecay)
+	public EssencePouch(EssencePouches pouchType, int storedEssence, boolean unknownState, boolean unknownDecay, int runecraftingLevel)
 	{
-		this(pouchType, storedEssence, pouchType.getMaxEssenceBeforeDecay(), false, true, unknownState, unknownDecay);
+		this(pouchType, storedEssence, pouchType.getMaxEssenceBeforeDecay(), false, true, unknownState, unknownDecay, runecraftingLevel);
+	}
+
+	public EssencePouch(EssencePouches pouchType, int runecraftingLevel)
+	{
+		this(pouchType, 0, true, true, runecraftingLevel);
 	}
 
 	public EssencePouch(EssencePouches pouchType)
 	{
-		this(pouchType, 0, true, true);
+		this(pouchType, 0, true, true, 99);
 	}
 
 	/**
@@ -92,10 +101,10 @@ public class EssencePouch
 			essenceToRemove,
 			essenceRemoved,
 			this.storedEssence,
-			this.pouchType.getMaxCapacity(),
+			this.getMaximumCapacity(),
 			this.pouchType.getName(),
 			previousStoredEssence,
-			this.pouchType.getMaxCapacity()
+			this.getMaximumCapacity()
 		);
 		return essenceRemoved;
 	}
@@ -124,14 +133,14 @@ public class EssencePouch
 		log.debug("Given {} essence, storing {}/{} essence into the {}. The pouch now contains {}/{} essence and can store approximately {} more essence until decay.",
 			totalEssenceInInventory,
 			essenceToStore,
-			this.pouchType.getMaxCapacity(),
+			this.getMaximumCapacity(),
 			this.pouchType.getName(),
 			this.storedEssence,
-			this.pouchType.getMaxCapacity(),
+			this.getMaximumCapacity(),
 			this.remainingEssenceBeforeDecay
 		);
 		// Left-over essence that exceeded maximum capacity
-		// Math.max(0, totalEssenceInInventory - this.pouchType.getMaxCapacity())
+		// Math.max(0, totalEssenceInInventory - this.maxCapacity)
 		return essenceToStore;
 	}
 
@@ -167,11 +176,97 @@ public class EssencePouch
 	{
 		if (this.isDegraded)
 		{
-			return this.pouchType.getMaxInitialDegradedCapacity();
+			return this.maxDegradedCapacity;
 		}
 		else
 		{
-			return this.pouchType.getMaxCapacity();
+			return this.maxCapacity;
+		}
+	}
+
+	/**
+	 * Updates the maximum capacity of the pouch based on the pouch type and the player's Runecrafting level
+	 * Doesn't factor in degradation
+	 * <p>
+	 * https://oldschool.runescape.wiki/w/Essence_pouch
+	 * https://oldschool.runescape.wiki/w/Colossal_pouch#Capacity
+	 *
+	 * @param runecraftingLevel the player's Runecrafting level
+	 */
+	public void updateMaxCapacity(int runecraftingLevel)
+	{
+		// https://oldschool.runescape.wiki/w/Colossal_pouch#Capacity
+		// Colossal pouch max capacity differs based on the player's Runecrafting level
+		// 25 -> 8 | 50 -> 16 | 75 -> 27 | 85 -> 40
+		if (this.getPouchType().equals(EssencePouches.COLOSSAL))
+		{
+			if (runecraftingLevel >= 85)
+			{
+				this.maxCapacity = EssencePouches.COLOSSAL.getMaxCapacity();
+			}
+			else if (runecraftingLevel >= 75)
+			{
+				this.maxCapacity = 27;
+			}
+			else if (runecraftingLevel >= 50)
+			{
+				this.maxCapacity = 16;
+			}
+			else
+			{
+				this.maxCapacity = 8;
+			}
+			if (runecraftingLevel < 85)
+			{
+				log.debug("Player's Runecrafting level is {}, setting the {}'s max capacity to {}.", runecraftingLevel, this.pouchType.getName(), this.maxCapacity);
+			}
+		}
+		else
+		{
+			this.maxCapacity = this.getPouchType().getMaxCapacity();
+		}
+	}
+
+	/**
+	 * Updates the maximum degraded capacity of the pouch based on the pouch type and the player's Runecrafting level
+	 * <p>
+	 * https://oldschool.runescape.wiki/w/Essence_pouch
+	 * https://oldschool.runescape.wiki/w/Colossal_pouch#Capacity
+	 *
+	 * @param runecraftingLevel the player's Runecrafting level
+	 */
+	public void updateMaxDegradedCapacity(int runecraftingLevel)
+	{
+		// https://oldschool.runescape.wiki/w/Colossal_pouch#Capacity
+		// Colossal pouch max capacity differs based on the player's Runecrafting level
+		// 25 -> 8 | 50 -> 16 | 75 -> 27 | 85 -> 40
+		// Apparently each colossal pouch reduces the max capacity by 5 for each degrade. For now, lets keep it simple and ignore additional degrades.
+		if (this.getPouchType().equals(EssencePouches.COLOSSAL))
+		{
+			if (runecraftingLevel >= 85)
+			{
+				this.maxDegradedCapacity = EssencePouches.COLOSSAL.getMaxInitialDegradedCapacity();
+			}
+			else if (runecraftingLevel >= 75)
+			{
+				this.maxDegradedCapacity = 27 - 5;
+			}
+			else if (runecraftingLevel >= 50)
+			{
+				this.maxDegradedCapacity = 16 - 5;
+			}
+			else
+			{
+				this.maxDegradedCapacity = 8 - 5;
+			}
+			if (runecraftingLevel < 85)
+			{
+				log.debug("Player's Runecrafting level is {}, setting the {}'s max degraded capacity to {}.", runecraftingLevel, this.pouchType.getName(), this.maxDegradedCapacity);
+			}
+		}
+		else
+		{
+			this.maxDegradedCapacity = this.getPouchType().getMaxInitialDegradedCapacity();
 		}
 	}
 

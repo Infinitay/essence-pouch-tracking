@@ -107,7 +107,7 @@ public enum EssencePouches
 		return DEGRADED_ESSENCE_POUCHES_MAP.containsKey(itemID);
 	}
 
-	public static EssencePouch createPouch(int itemID)
+	public static EssencePouch createPouch(int itemID, int runecraftingLevel)
 	{
 		EssencePouch essencePouch = null;
 		EssencePouches pouchType = getPouch(itemID);
@@ -118,11 +118,11 @@ public enum EssencePouches
 
 		if (pouchType.degradedItemID != itemID)
 		{
-			essencePouch = new EssencePouch(pouchType);
+			essencePouch = new EssencePouch(pouchType, runecraftingLevel);
 		}
 		else
 		{
-			essencePouch = new EssencePouch(pouchType);
+			essencePouch = new EssencePouch(pouchType, runecraftingLevel);
 			essencePouch.setDegraded(true);
 			essencePouch.setRemainingEssenceBeforeDecay(Integer.MIN_VALUE);
 		}

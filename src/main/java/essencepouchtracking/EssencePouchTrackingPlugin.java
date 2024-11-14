@@ -134,6 +134,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean wasLastActionCraftRune;
 	private int lastCraftRuneTick;
 	private int lastRCXP = -1;
+	private int currentRCLevel = -1;
 
 	private final Set<Integer> RC_CAPES_SET = ImmutableSet.<Integer>builder().addAll(this.getItemVariants(ItemID.RUNECRAFT_CAPE))
 		.addAll(this.getItemVariants(ItemID.MAX_CAPE))
@@ -180,6 +181,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				if (this.client.getGameState().equals(GameState.LOGGED_IN))
 				{
 					this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1;
+					this.currentRCLevel = this.getRunecraftingLevel();
 				}
 			}
 		);
@@ -229,6 +231,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			if (this.client.getGameState().equals(GameState.LOGGED_IN))
 			{
 				this.didUnlockGOTRRepair = this.client.getVarbitValue(14672) == 1 ? true : false;
+				this.currentRCLevel = this.getRunecraftingLevel();
 				// Player is already logged in, so reload inventory and equipment data by resending the events
 				ItemContainer currentInventory = this.client.getItemContainer(InventoryID.INVENTORY);
 				ItemContainer currentEquipment = this.client.getItemContainer(InventoryID.EQUIPMENT);
@@ -597,10 +600,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 			// First check if we have any pouches in the inventory in case this is the user's first run or some other issue
 			for (int itemId : addedItems.elementSet())
 			{
-				EssencePouch pouch = EssencePouches.createPouch(itemId);
+				EssencePouch pouch = EssencePouches.createPouch(itemId, this.currentRCLevel);
 				if (pouch != null && !this.pouches.containsKey(pouch.getPouchType()))
 				{
-					log.debug("Player added a {} to their inventory", pouch.getPouchType().getName());
+					log.debug("Player added a {} to their inventory: {}", pouch.getPouchType().getName(), pouch);
 					this.pouches.put(pouch.getPouchType(), pouch);
 					this.updatePouchFromState(pouch);
 					// Now lets check to see if the pouch has any unknown state, and if so, then send a message instructing the user
@@ -636,6 +639,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 						modifiedEssencePouch.add(currentPouch.getPouchType());
 						currentPouch.setDegraded(true);
 						log.debug("{} has degraded and was added to the inventory", currentPouch.getPouchType().getName());
+						if (currentPouch.getPouchType().equals(EssencePouches.COLOSSAL))
+						{
+							currentPouch.updateMaxDegradedCapacity(this.getRunecraftingLevel());
+						}
 						// Re-run the action to update the pouch's state
 						this.handPouchActionsPostDegrade(currentPouch);
 					}
@@ -823,12 +830,35 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Fires every login including when account switching.
 		if (fakeXpDrop.getSkill().equals(Skill.RUNECRAFT))
 		{
+			// Runecrafting level checks and updates due to colossal pouch
+			// Ignore the initial login xp drop
+			if (this.currentRCLevel == -1)
+			{
+				this.currentRCLevel = this.getRunecraftingLevel();
+			}
+			else
+			{
+				int tempRCLevel = this.getRunecraftingLevel();
+				if (tempRCLevel != this.currentRCLevel)
+				{
+					this.currentRCLevel = tempRCLevel;
+					EssencePouch colossalPouch = this.pouches.get(EssencePouches.COLOSSAL);
+					if (colossalPouch != null)
+					{
+						log.debug("onFakeXpDrop | Runecrafting level changed to {}. Attempting to update Colossal Pouch capacity & max decay.", this.currentRCLevel);
+						colossalPouch.updateMaxCapacity(this.currentRCLevel);
+						colossalPouch.updateMaxDegradedCapacity(this.currentRCLevel);
+					}
+				}
+			}
+
 			// Ignore the initial login xp drop
 			if (this.lastRCXP == -1)
 			{
 				this.lastRCXP = fakeXpDrop.getXp();
 				return;
 			}
+
 			// Courtesy of SpecialCounterPlugin
 			if (fakeXpDrop.getXp() > this.lastRCXP)
 			{
@@ -875,12 +905,35 @@ public class EssencePouchTrackingPlugin extends Plugin
 		// Fires every login including when account switching.
 		if (statChanged.getSkill().equals(Skill.RUNECRAFT))
 		{
+			// Runecrafting level checks and updates due to colossal pouch
+			// Ignore the initial login xp drop
+			if (this.currentRCLevel == -1)
+			{
+				this.currentRCLevel = this.getRunecraftingLevel();
+			}
+			else
+			{
+				int tempRCLevel = this.getRunecraftingLevel();
+				if (tempRCLevel != this.currentRCLevel)
+				{
+					this.currentRCLevel = tempRCLevel;
+					EssencePouch colossalPouch = this.pouches.get(EssencePouches.COLOSSAL);
+					if (colossalPouch != null)
+					{
+						log.debug("onStatChanged | Runecrafting level changed to {}. Attempting to update Colossal Pouch capacity & max decay.", this.currentRCLevel);
+						colossalPouch.updateMaxCapacity(this.currentRCLevel);
+						colossalPouch.updateMaxDegradedCapacity(this.currentRCLevel);
+					}
+				}
+			}
+
 			// Ignore the initial login xp drop
 			if (this.lastRCXP == -1)
 			{
 				this.lastRCXP = statChanged.getXp();
 				return;
 			}
+
 			// Courtesy of SpecialCounterPlugin
 			if (statChanged.getXp() > this.lastRCXP)
 			{
@@ -1088,6 +1141,12 @@ public class EssencePouchTrackingPlugin extends Plugin
 					this.configManager.unsetConfiguration(this.config.GROUP, "trackingState");
 					this.configManager.unsetRSProfileConfiguration(this.config.GROUP, "trackingState");
 					break;
+				case "!savecolo":
+					String stateJSON = "{\"smallPouch\":{\"pouchType\":\"SMALL\",\"storedEssence\":0,\"remainingEssenceBeforeDecay\":2147483647,\"isDegraded\":false,\"shouldDegrade\":false,\"unknownStored\":false,\"unknownDecay\":false,\"maxCapacity\":0},\"mediumPouch\":{\"pouchType\":\"MEDIUM\",\"storedEssence\":0,\"remainingEssenceBeforeDecay\":270,\"isDegraded\":false,\"shouldDegrade\":true,\"unknownStored\":false,\"unknownDecay\":false,\"maxCapacity\":0},\"largePouch\":{\"pouchType\":\"LARGE\",\"storedEssence\":0,\"remainingEssenceBeforeDecay\":261,\"isDegraded\":false,\"shouldDegrade\":true,\"unknownStored\":false,\"unknownDecay\":false,\"maxCapacity\":0},\"giantPouch\":{\"pouchType\":\"GIANT\",\"storedEssence\":0,\"remainingEssenceBeforeDecay\":132,\"isDegraded\":false,\"shouldDegrade\":true,\"unknownStored\":false,\"unknownDecay\":false,\"maxCapacity\":0},\"colossalPouch\":{\"pouchType\":\"COLOSSAL\",\"storedEssence\":0,\"remainingEssenceBeforeDecay\":261,\"isDegraded\":false,\"shouldDegrade\":true,\"unknownStored\":false,\"unknownDecay\":false,\"maxCapacity\":0}}";
+					this.trackingState = this.deserializeState(stateJSON);
+					this.saveTrackingState();
+					log.debug("Saved Tracking State: {}", this.trackingState);
+					this.pouches.replaceAll((key, value) -> this.trackingState.getPouch(key));
 				default:
 					break;
 			}
@@ -1337,20 +1396,31 @@ public class EssencePouchTrackingPlugin extends Plugin
 	{
 
 		String trackingStateAsJSONString = this.configManager.getRSProfileConfiguration(this.config.GROUP, "trackingState");
-		log.debug("{}", trackingStateAsJSONString);
 		EssencePouchTrackingState trackingState = this.deserializeState(trackingStateAsJSONString);
 		if (trackingState != null)
 		{
 			this.trackingState = trackingState;
-			log.debug("Loaded tracking state: {}", trackingState);
+			log.debug("loadTrackingState | Loaded Tracking State: {}", trackingState);
 			for (EssencePouches pouchType : this.pouches.keySet())
 			{
-				this.pouches.put(pouchType, trackingState.getPouch(pouchType));
+				EssencePouch pouchFromState = trackingState.getPouch(pouchType);
+				// Check to see if we need to update the max capacity after the feature update that added the max capacity to EssencePouch due to Colossal Pouch changes
+				if (pouchFromState.getMaxCapacity() == 0 || pouchFromState.getMaxDegradedCapacity() == 0)
+				{
+					log.debug("loadTrackingState | Current {} max capacity {} & max degrade {}. Updating the max capacity...",
+						pouchType.getName(),
+						pouchFromState.getMaxCapacity(),
+						pouchFromState.getMaxDegradedCapacity()
+					);
+					pouchFromState.updateMaxCapacity(this.getRunecraftingLevel());
+					pouchFromState.updateMaxDegradedCapacity(this.getRunecraftingLevel());
+				}
+				this.pouches.put(pouchType, pouchFromState);
 			}
 		}
 		else
 		{
-			log.debug("Unable to load tracking state to the loaded tracking state being null");
+			log.debug("Unable to load the tracking state due to the loaded state being null");
 			this.updateTrackingState(); // It'll initialize the state
 		}
 	}
@@ -1362,18 +1432,26 @@ public class EssencePouchTrackingPlugin extends Plugin
 			for (EssencePouch pouch : this.pouches.values())
 			{
 				this.trackingState.setPouch(pouch);
-				log.debug("Updated tracking state for {} ({} stored, {} until decay)", pouch.getPouchType(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
+				log.debug("updateTrackingState | Updated tracking state for {} ({} stored, {} until decay)", pouch.getPouchType(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
 			}
 			log.debug("Updated the tracking state");
 		}
 		else
 		{
-			log.debug("Unable to update the tracking state due to the state being null. Initializing the state.");
+			log.debug("updateTrackingState | Unable to update the tracking state due to the state being null. Initializing the state.");
 			this.trackingState = new EssencePouchTrackingState();
 			// Initialize the pouches
 			for (EssencePouches pouch : this.pouches.keySet())
 			{
-				this.pouches.put(pouch, this.trackingState.getPouch(pouch));
+				EssencePouch pouchFromState = this.trackingState.getPouch(pouch);
+				if (pouch.equals(EssencePouches.COLOSSAL))
+				{
+					// Initialize the colossal pouch with the max capacity according to the player's runecrafting level due to Colossal Pouch changes
+					// Check to see if we need to update the max capacity & degraded capacity
+					pouchFromState.updateMaxCapacity(this.getRunecraftingLevel());
+					pouchFromState.updateMaxDegradedCapacity(this.getRunecraftingLevel());
+				}
+				this.pouches.put(pouch, pouchFromState);
 			}
 		}
 		this.saveTrackingState();
@@ -1387,6 +1465,19 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private void updatePouchFromState(EssencePouch pouch)
 	{
 		EssencePouch pouchFromState = this.trackingState.getPouch(pouch.getPouchType());
+		// Check to see if we need to update the max capacities after the feature update that added the max capacity to EssencePouch due to Colossal Pouch changes
+		if (pouchFromState.getMaxCapacity() == 0 || pouchFromState.getMaxDegradedCapacity() == 0)
+		{
+			log.debug("updatePouchFromState | Current {} max capacity {} & max degrade {}. Updating the max capacity...",
+				pouchFromState.getPouchType().getName(),
+				pouchFromState.getMaxCapacity(),
+				pouchFromState.getMaxDegradedCapacity()
+			);
+			pouchFromState.updateMaxCapacity(this.getRunecraftingLevel());
+			pouchFromState.updateMaxDegradedCapacity(this.getRunecraftingLevel());
+		}
+		// A pouch in the previous saved state could be marked as non-degraded, but current got degraded. Update it.
+		pouchFromState.setDegraded(pouch.isDegraded());
 		this.pouches.put(pouch.getPouchType(), pouchFromState);
 		log.debug("Updated the {} from the tracking state ({} stored, {} until decay)", pouch.getPouchType().getName(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
 	}
@@ -1423,6 +1514,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.wasLastActionCraftRune = false;
 		this.lastCraftRuneTick = -1;
 		this.lastRCXP = -1;
+		this.currentRCLevel = -1;
 		this.didSendCheckNotification = false;
 	}
 
@@ -1518,5 +1610,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 			}
 		}
 		this.saveTrackingState();
+	}
+
+	public int getRunecraftingLevel()
+	{
+		return this.client.getRealSkillLevel(Skill.RUNECRAFT);
 	}
 }

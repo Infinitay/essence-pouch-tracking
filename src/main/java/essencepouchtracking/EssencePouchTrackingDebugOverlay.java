@@ -73,7 +73,7 @@ public class EssencePouchTrackingDebugOverlay extends OverlayPanel
 			for (Map.Entry<EssencePouches, EssencePouch> entry : pouches.entrySet())
 			{
 				EssencePouch pouch = entry.getValue();
-				buildLine(entry.getKey().toString(), String.valueOf(pouch.getStoredEssence()));
+				buildLine(entry.getKey().toString(), String.valueOf(pouch.getStoredEssence()) + "(" + pouch.getMaximumCapacity() + " " + pouch.getMaxDegradedCapacity() + ")");
 			}
 		}
 		return super.render(graphics);
