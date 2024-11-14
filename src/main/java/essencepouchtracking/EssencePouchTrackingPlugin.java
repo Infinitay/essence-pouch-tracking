@@ -158,6 +158,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 	private boolean isLanternDecayPreventionAvailable;
 
 	private boolean didSendCheckNotification;
+	private int delayTicksUntilLevelsInitialized = 2;
 
 	@Provides
 	EssencePouchTrackingConfig provideConfig(ConfigManager configManager)
@@ -262,6 +263,10 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			// Get the tracking state
 			this.loadTrackingState();
+		}
+		else if (gameStateChanged.getGameState().equals(GameState.LOGGING_IN) || gameStateChanged.getGameState().equals(GameState.HOPPING))
+		{
+			this.delayTicksUntilLevelsInitialized = 2;
 		}
 	}
 
@@ -706,6 +711,26 @@ public class EssencePouchTrackingPlugin extends Plugin
 	@Subscribe
 	public void onGameTick(GameTick gameTick)
 	{
+		// On cold-starts or even other logins, apparently the levels are not initialized until some ticks after. The XpTracker plugin waits until two ticks, lets do the same
+		if (this.delayTicksUntilLevelsInitialized > 0 && --this.delayTicksUntilLevelsInitialized == 0)
+		{
+			log.debug("Two ticks have passed since the player logged in. Re-updating max pouch capacities (RC Level: {})", this.currentRCLevel);
+			this.currentRCLevel = this.getRunecraftingLevel();
+			boolean didUpdateAnyPouch = false;
+			for (EssencePouch pouch : this.pouches.values())
+			{
+				log.debug("Updating {}'s max capacities", pouch.getPouchType().getName());
+				pouch.updateMaxCapacity(this.currentRCLevel);
+				pouch.updateMaxDegradedCapacity(this.currentRCLevel);
+				didUpdateAnyPouch = true;
+			}
+			// Re-save the tracking state to ensure the pouches are updated for future sessions
+			if (didUpdateAnyPouch)
+			{
+				this.updateTrackingState();
+			}
+		}
+
 		if (this.pauseUntilTick != -1 && this.client.getTickCount() > this.pauseUntilTick)
 		{
 			log.debug("Unblocking the inventory update and clearing queues");
@@ -1432,7 +1457,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			for (EssencePouch pouch : this.pouches.values())
 			{
 				this.trackingState.setPouch(pouch);
-				log.debug("updateTrackingState | Updated tracking state for {} ({} stored, {} until decay)", pouch.getPouchType(), pouch.getStoredEssence(), pouch.getRemainingEssenceBeforeDecay());
+				log.debug("updateTrackingState | Updated tracking state for {}", pouch);
 			}
 			log.debug("Updated the tracking state");
 		}
@@ -1516,6 +1541,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 		this.lastRCXP = -1;
 		this.currentRCLevel = -1;
 		this.didSendCheckNotification = false;
+		this.delayTicksUntilLevelsInitialized = 2;
 	}
 
 	private void repairAllPouches()
