@@ -249,15 +249,18 @@ public class EssencePouch
 			}
 			else if (runecraftingLevel >= 75)
 			{
-				this.maxDegradedCapacity = 27 - 5;
+				int degradeDelta = EssencePouches.GIANT.getMaxCapacity() - EssencePouches.GIANT.getMaxInitialDegradedCapacity(); // 3
+				this.maxDegradedCapacity = 27 - degradeDelta; // 24
 			}
 			else if (runecraftingLevel >= 50)
 			{
-				this.maxDegradedCapacity = 16 - 5;
+				int degradeDelta = EssencePouches.LARGE.getMaxCapacity() - EssencePouches.LARGE.getMaxInitialDegradedCapacity(); // 2
+				this.maxDegradedCapacity = 16 - degradeDelta; // 14
 			}
 			else
 			{
-				this.maxDegradedCapacity = 8 - 5;
+				int degradeDelta = EssencePouches.MEDIUM.getMaxCapacity() - EssencePouches.MEDIUM.getMaxInitialDegradedCapacity(); // 3
+				this.maxDegradedCapacity = 8 - degradeDelta; // 5
 			}
 			if (runecraftingLevel < 85)
 			{
