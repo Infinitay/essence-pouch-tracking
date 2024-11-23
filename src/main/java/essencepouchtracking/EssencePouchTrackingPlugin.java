@@ -577,6 +577,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 			this.currentInventoryItems.clear();
 			List<Item> itemStream = Arrays.stream(itemContainerChanged.getItemContainer().getItems()).filter(this.filterNullItemsPredicate()).collect(Collectors.toList());
 			itemStream.forEach(item -> this.currentInventoryItems.add(item.getId(), this.itemManager.getItemComposition(item.getId()).isStackable() ? 1 : item.getQuantity()));
+			boolean updatedInventoryState = false;
 			if (this.pauseUntilTick == -1 || this.client.getTickCount() >= this.pauseUntilTick)
 			{
 				this.updatePreviousInventoryDetails();
@@ -584,6 +585,7 @@ public class EssencePouchTrackingPlugin extends Plugin
 				itemStream.stream().filter(item -> this.isValidEssencePouchItem(item.getId())).forEach(item -> this.essenceInInventory++);
 				this.inventoryUsedSlots = this.currentInventoryItems.size();
 				this.inventoryFreeSlots = 28 - this.inventoryUsedSlots;
+				updatedInventoryState = true;
 				log.debug("[Inventory Data] Updated Inventory | Essence in inventory: {}->{}, Free slots: {}->{}, Used slots: {}->{}",
 					this.previousEssenceInInventory, this.essenceInInventory,
 					this.previousInventoryFreeSlots, this.inventoryFreeSlots,
@@ -653,6 +655,11 @@ public class EssencePouchTrackingPlugin extends Plugin
 						if (currentPouch.getPouchType().equals(EssencePouches.COLOSSAL))
 						{
 							currentPouch.updateMaxDegradedCapacity(this.getRunecraftingLevel());
+						}
+						if (updatedInventoryState)
+						{
+							// Reset the inventory state to before the inventory update since we only had one action and the inventory was updated
+							this.restorePreviousInventoryDetails();
 						}
 						// Re-run the action to update the pouch's state
 						this.handPouchActionsPostDegrade(currentPouch);
@@ -1401,7 +1408,24 @@ public class EssencePouchTrackingPlugin extends Plugin
 		{
 			log.debug("Handling opposite for task: {}", task);
 			task.setAction(task.getAction().equals(PouchActionTask.PouchAction.FILL) ? PouchActionTask.PouchAction.EMPTY : PouchActionTask.PouchAction.FILL);
-			onPouchActionCreated(new PouchActionCreated(task));
+			EssencePouch pouch = this.pouches.get(task.getPouchType());
+			int previousRemainingEssenceBeforeDecay = pouch.getRemainingEssenceBeforeDecay();
+			int previousStoredEssence = pouch.getStoredEssence();
+			boolean wasSuccessful = onPouchActionCreated(new PouchActionCreated(task));
+			int currentStoredEssence = pouch.getStoredEssence();
+			if (wasSuccessful && task.getAction().equals(PouchActionTask.PouchAction.EMPTY))
+			{
+				// Successfully reverted a fill task by re-emptying it, so don't forget to also revert the remaining essence before decay
+				int dx = previousStoredEssence - currentStoredEssence;
+				if (pouch.isDegraded())
+				{
+					pouch.setRemainingEssenceBeforeDecay(0);
+				}
+				else
+				{
+					pouch.setRemainingEssenceBeforeDecay(previousRemainingEssenceBeforeDecay + dx);
+				}
+			}
 		}
 		log.debug("After Opposite Actions Queue: {}", tempOppositeActionQueue);
 
