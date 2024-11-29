@@ -124,7 +124,7 @@ public enum EssencePouches
 		{
 			essencePouch = new EssencePouch(pouchType, runecraftingLevel);
 			essencePouch.setDegraded(true);
-			essencePouch.setRemainingEssenceBeforeDecay(Integer.MIN_VALUE);
+			essencePouch.setRemainingEssenceBeforeDecay(0);
 		}
 
 		return essencePouch;
